@@ -27,7 +27,8 @@
             │
             ├── CodexAdapter  → codex exec --json
             ├── GeminiAdapter → gemini -p -o stream-json
-            └── ClaudeAdapter → claude -p
+            ├── ClaudeAdapter → claude -p
+            └── OllamaAdapter → ollama run <model>
 ```
 
 **三级降级方案：**
@@ -45,6 +46,7 @@
   - `codex` — `npm i -g @openai/codex`
   - `gemini` — `npm i -g @google/gemini-cli`
   - `claude` — [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+  - `ollama` — [Ollama](https://ollama.com)（本地模型：DeepSeek、Llama、Qwen 等）
 
 ### 安装
 
@@ -185,6 +187,10 @@ mux_dispatch(provider="gemini", model="gemini-2.5-pro", task="...")
 
 # 指定 Claude 使用特定模型
 mux_dispatch(provider="claude", model="claude-sonnet-4-6", task="...")
+
+# 使用 Ollama 本地模型（DeepSeek、Llama、Qwen 等）
+mux_dispatch(provider="ollama", model="deepseek-r1", task="...")
+mux_dispatch(provider="ollama", model="qwen2.5:72b", task="...")
 
 # Codex 专属参数：配置文件 profile + 推理深度
 mux_dispatch(
