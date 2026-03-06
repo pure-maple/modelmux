@@ -12,9 +12,12 @@ Policy is loaded from ~/.config/modelmux/policy.json.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def _policy_file() -> Path:
@@ -57,7 +60,8 @@ def load_policy() -> Policy:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return _parse_policy(data)
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to parse policy file %s: %s — using default (permissive) policy", path, exc)
         return Policy()
 
 

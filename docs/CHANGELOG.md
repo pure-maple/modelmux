@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.25.1 (2026-03-07)
+
+### Security Hardening (Phase 2)
+- **Policy Enforcement Parity**: `mux_broadcast` now checks policy for ALL target providers (was only first); `mux_workflow` and `mux_collaborate` now enforce policy before execution
+- **A2A Default Binding**: Server defaults to `127.0.0.1` instead of `0.0.0.0` to prevent unintended network exposure (use `--host 0.0.0.0` to opt-in)
+- **Request Body Size Limit**: A2A HTTP server enforces 1MB max request body to prevent DoS
+- **Task ID Hijacking Prevention**: `tasks/send` and `tasks/sendSubscribe` now generate server-side task IDs (ignoring client-supplied IDs) to prevent cross-client task manipulation
+- **Timeout Cap**: `timeout_per_turn` in A2A capped at 3600s to prevent resource exhaustion
+- **GenericAdapter Template Injection**: Built-in substitution keys (`task`, `workdir`, `sandbox`, `session_id`) protected from `extra_args` override
+- **Environment Variable Blocklist**: `ProviderConfig.to_env_overrides()` blocks dangerous env vars (`PATH`, `LD_PRELOAD`, `PYTHONPATH`, etc.)
+- **DashScope SSRF Fix**: `base_url` no longer accepted from `extra_args` (only from config/env overrides)
+- **Policy Parse Logging**: Failed policy.json parsing now logs a warning instead of silently falling back to permissive defaults
+
+### Stats
+- 15 new security tests (388 total)
+- All remaining findings from 3-agent security audit addressed
+
 ## v0.25.0 (2026-03-07)
 
 ### Security Hardening (based on 3-agent parallel security audit)

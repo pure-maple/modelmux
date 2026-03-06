@@ -212,7 +212,8 @@ async def test_client_send_and_get_via_asgi():
             },
         )
         result = r1.json()["result"]
-        assert result["id"] == "client-test-1"
+        task_id = result["id"]
+        assert task_id.startswith("task-")  # server-generated ID
 
         # Get
         r2 = await http.post(
@@ -221,11 +222,11 @@ async def test_client_send_and_get_via_asgi():
                 "jsonrpc": "2.0",
                 "id": 2,
                 "method": "tasks/get",
-                "params": {"id": "client-test-1"},
+                "params": {"id": task_id},
             },
         )
         get_result = r2.json()["result"]
-        assert get_result["id"] == "client-test-1"
+        assert get_result["id"] == task_id
 
 
 # --- A2ARemoteAdapter tests ---

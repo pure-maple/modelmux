@@ -193,7 +193,7 @@ class A2AServer:
     def __init__(
         self,
         get_adapter: Any,  # Callable[[str], BaseAdapter]
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",
         port: int = 41520,
         workdir: str = ".",
         sandbox: str = "read-only",
@@ -333,8 +333,16 @@ class A2AServer:
         if auth_err:
             return auth_err
 
+        # Enforce request body size limit (1 MB)
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > 1_048_576:
+            return _jsonrpc_error(None, INVALID_REQUEST, "Request body too large (max 1MB)")
+
         try:
-            body = await request.json()
+            raw_body = await request.body()
+            if len(raw_body) > 1_048_576:
+                return _jsonrpc_error(None, INVALID_REQUEST, "Request body too large (max 1MB)")
+            body = json.loads(raw_body)
         except Exception:
             return _jsonrpc_error(None, PARSE_ERROR, "Parse error")
 
@@ -404,11 +412,8 @@ class A2AServer:
         if policy_err:
             raise InvalidParamsError(policy_err)
 
-        # Create or resume task
-        task_id = params.get("id", "")
-        entry = self.store.get(task_id) if task_id else None
-        if not entry:
-            entry = self.store.create(task_id=task_id)
+        # Create new task (server-generated ID to prevent task hijacking)
+        entry = self.store.create()
 
         # Parse push notification config
         entry.push_config = _extract_push_config(params)
@@ -505,10 +510,8 @@ class A2AServer:
         if policy_err:
             raise InvalidParamsError(policy_err)
 
-        task_id = params.get("id", "")
-        entry = self.store.get(task_id) if task_id else None
-        if not entry:
-            entry = self.store.create(task_id=task_id)
+        # Create new task (server-generated ID to prevent task hijacking)
+        entry = self.store.create()
 
         entry.push_config = _extract_push_config(params)
         server_ref = self  # capture for closure
@@ -737,7 +740,7 @@ def _extract_task_params(params: dict[str, Any]) -> TaskParams:
     metadata = params.get("metadata", {}) or message.get("metadata", {})
     pattern = metadata.get("pattern", "review")
     provider_map = metadata.get("providers")
-    timeout_per_turn = int(metadata.get("timeout_per_turn", 0))
+    timeout_per_turn = min(max(int(metadata.get("timeout_per_turn", 0)), 0), 3600)
 
     return TaskParams(
         task_text=task_text,

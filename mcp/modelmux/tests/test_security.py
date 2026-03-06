@@ -244,3 +244,205 @@ class TestA2APolicyEnforcement:
             result = server._check_provider_policy({"reviewer": "codex"})
         assert result is not None
         assert "codex" in result
+
+
+class TestGenericAdapterTemplateInjection:
+    """GenericAdapter must not allow extra_args to override built-in keys."""
+
+    def test_task_key_protected(self):
+        from modelmux.adapters.generic import GenericAdapter
+
+        adapter = GenericAdapter("test", "echo", ["{task}"])
+        cmd = adapter.build_command(
+            "real prompt", "/tmp",
+            extra_args={"task": "INJECTED"},
+        )
+        assert "INJECTED" not in cmd
+        assert "real prompt" in cmd
+
+    def test_workdir_key_protected(self):
+        from modelmux.adapters.generic import GenericAdapter
+
+        adapter = GenericAdapter("test", "echo", ["{workdir}"])
+        cmd = adapter.build_command(
+            "prompt", "/safe/dir",
+            extra_args={"workdir": "/evil/dir"},
+        )
+        assert "/evil/dir" not in cmd
+        assert "/safe/dir" in cmd
+
+    def test_sandbox_key_protected(self):
+        from modelmux.adapters.generic import GenericAdapter
+
+        adapter = GenericAdapter("test", "echo", ["{sandbox}"])
+        cmd = adapter.build_command(
+            "prompt", "/tmp", sandbox="read-only",
+            extra_args={"sandbox": "danger-full-access"},
+        )
+        assert "danger-full-access" not in cmd
+        assert "read-only" in cmd
+
+    def test_session_id_key_protected(self):
+        from modelmux.adapters.generic import GenericAdapter
+
+        adapter = GenericAdapter("test", "echo", ["{session_id}"])
+        cmd = adapter.build_command(
+            "prompt", "/tmp", session_id="real-id",
+            extra_args={"session_id": "hijacked-id"},
+        )
+        assert "hijacked-id" not in cmd
+        assert "real-id" in cmd
+
+    def test_custom_extra_args_still_work(self):
+        from modelmux.adapters.generic import GenericAdapter
+
+        adapter = GenericAdapter("test", "echo", ["{task}", "{model}"])
+        cmd = adapter.build_command(
+            "prompt", "/tmp",
+            extra_args={"model": "llama3"},
+        )
+        assert "llama3" in cmd
+        assert "prompt" in cmd
+
+
+class TestConfigEnvBlocklist:
+    """ProviderConfig.to_env_overrides must block dangerous env vars."""
+
+    def test_path_blocked(self):
+        from modelmux.config import ProviderConfig
+
+        pc = ProviderConfig(extra_env={"PATH": "/evil/bin"})
+        env = pc.to_env_overrides("codex")
+        assert "PATH" not in env
+
+    def test_ld_preload_blocked(self):
+        from modelmux.config import ProviderConfig
+
+        pc = ProviderConfig(extra_env={"LD_PRELOAD": "/evil/lib.so"})
+        env = pc.to_env_overrides("gemini")
+        assert "LD_PRELOAD" not in env
+
+    def test_pythonpath_blocked(self):
+        from modelmux.config import ProviderConfig
+
+        pc = ProviderConfig(extra_env={"PYTHONPATH": "/evil/packages"})
+        env = pc.to_env_overrides("claude")
+        assert "PYTHONPATH" not in env
+
+    def test_dyld_insert_blocked(self):
+        from modelmux.config import ProviderConfig
+
+        pc = ProviderConfig(extra_env={"DYLD_INSERT_LIBRARIES": "/evil/lib.dylib"})
+        env = pc.to_env_overrides("dashscope")
+        assert "DYLD_INSERT_LIBRARIES" not in env
+
+    def test_home_blocked(self):
+        from modelmux.config import ProviderConfig
+
+        pc = ProviderConfig(extra_env={"HOME": "/tmp/evil"})
+        env = pc.to_env_overrides("codex")
+        assert "HOME" not in env
+
+    def test_safe_env_passes(self):
+        from modelmux.config import ProviderConfig
+
+        pc = ProviderConfig(extra_env={"MY_CUSTOM_VAR": "value123"})
+        env = pc.to_env_overrides("codex")
+        assert env.get("MY_CUSTOM_VAR") == "value123"
+
+    def test_case_insensitive_blocking(self):
+        from modelmux.config import ProviderConfig
+
+        pc = ProviderConfig(extra_env={"path": "/evil/bin"})
+        env = pc.to_env_overrides("codex")
+        assert "path" not in env
+
+    def test_multiple_mixed(self):
+        from modelmux.config import ProviderConfig
+
+        pc = ProviderConfig(extra_env={
+            "PATH": "/evil",
+            "SAFE_VAR": "ok",
+            "LD_LIBRARY_PATH": "/evil",
+            "ANOTHER_SAFE": "fine",
+        })
+        env = pc.to_env_overrides("gemini")
+        assert "PATH" not in env
+        assert "LD_LIBRARY_PATH" not in env
+        assert env.get("SAFE_VAR") == "ok"
+        assert env.get("ANOTHER_SAFE") == "fine"
+
+
+class TestDashScopeBaseUrlSsrf:
+    """DashScope adapter must not accept base_url from extra_args."""
+
+    @pytest.mark.asyncio
+    async def test_extra_args_base_url_ignored(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from modelmux.adapters.dashscope import DashScopeAdapter
+
+        adapter = DashScopeAdapter()
+        captured_urls = []
+
+        async def fake_post(url, **kwargs):
+            captured_urls.append(url)
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.json = MagicMock(return_value={
+                "choices": [{"message": {"content": "test"}}],
+                "model": "qwen3-coder-plus",
+            })
+            return resp
+
+        mock_client = MagicMock()
+        mock_client.post = fake_post
+
+        with patch.object(adapter, "_get_api_key", return_value="sk-test"), \
+             patch("modelmux.adapters.dashscope.httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await adapter.run(
+                prompt="test",
+                extra_args={"base_url": "http://evil.com"},
+            )
+
+        assert len(captured_urls) == 1
+        assert "evil.com" not in captured_urls[0]
+        assert "coding.dashscope.aliyuncs.com" in captured_urls[0]
+
+    @pytest.mark.asyncio
+    async def test_env_override_base_url_accepted(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from modelmux.adapters.dashscope import DashScopeAdapter
+
+        adapter = DashScopeAdapter()
+        captured_urls = []
+
+        async def fake_post(url, **kwargs):
+            captured_urls.append(url)
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.json = MagicMock(return_value={
+                "choices": [{"message": {"content": "test"}}],
+                "model": "qwen3-coder-plus",
+            })
+            return resp
+
+        mock_client = MagicMock()
+        mock_client.post = fake_post
+
+        with patch.object(adapter, "_get_api_key", return_value="sk-test"), \
+             patch("modelmux.adapters.dashscope.httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await adapter.run(
+                prompt="test",
+                env_overrides={"DASHSCOPE_BASE_URL": "https://custom.api.com/v1"},
+            )
+
+        assert len(captured_urls) == 1
+        assert "custom.api.com" in captured_urls[0]

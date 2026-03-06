@@ -689,21 +689,25 @@ async def mux_broadcast(
             indent=2,
         )
 
-    # Policy check (use first provider as representative)
+    # Policy check — validate all target providers
     policy = load_policy()
-    policy_result = check_policy(
-        policy,
-        provider=target_providers[0],
-        sandbox=sandbox,
-        timeout=timeout,
-        calls_last_hour=count_recent(1.0),
-        calls_last_day=count_recent(24.0),
-    )
-    if not policy_result.allowed:
-        return json.dumps(
-            {"status": "blocked", "error": f"Policy denied: {policy_result.reason}"},
-            indent=2,
+    calls_hour = count_recent(1.0)
+    calls_day = count_recent(24.0)
+    for tp in target_providers:
+        base_p = tp.split("/", 1)[0] if "/" in tp else tp
+        policy_result = check_policy(
+            policy,
+            provider=base_p,
+            sandbox=sandbox,
+            timeout=timeout,
+            calls_last_hour=calls_hour,
+            calls_last_day=calls_day,
         )
+        if not policy_result.allowed:
+            return json.dumps(
+                {"status": "blocked", "error": f"Policy denied provider '{tp}': {policy_result.reason}"},
+                indent=2,
+            )
 
     await ctx.info(
         f"Broadcasting to {len(target_providers)} providers: "
@@ -912,6 +916,30 @@ async def mux_workflow(
             },
             indent=2,
         )
+
+    # Policy check — validate all providers used in workflow steps
+    policy = load_policy()
+    calls_hour = count_recent(1.0)
+    calls_day = count_recent(24.0)
+    for step in wf.steps:
+        step_provider = step.provider.split("/", 1)[0] if "/" in step.provider else step.provider
+        policy_result = check_policy(
+            policy,
+            provider=step_provider,
+            sandbox="read-only",
+            timeout=600,
+            calls_last_hour=calls_hour,
+            calls_last_day=calls_day,
+        )
+        if not policy_result.allowed:
+            return json.dumps(
+                {
+                    "status": "blocked",
+                    "error": f"Policy denied provider '{step.provider}' "
+                    f"in step '{step.name}': {policy_result.reason}",
+                },
+                indent=2,
+            )
 
     await ctx.info(f"Starting workflow '{workflow}' ({len(wf.steps)} steps)...")
 
@@ -1159,6 +1187,37 @@ async def mux_collaborate(
         except json.JSONDecodeError:
             return json.dumps(
                 {"status": "error", "error": f"Invalid providers JSON: {providers}"},
+                indent=2,
+            )
+
+    # Policy check — validate all providers in the collaboration
+    policy = load_policy()
+    calls_hour = count_recent(1.0)
+    calls_day = count_recent(24.0)
+    providers_to_check: set[str] = set()
+    if provider_map:
+        for spec in provider_map.values():
+            providers_to_check.add(spec.split("/", 1)[0] if "/" in spec else spec)
+    else:
+        # Check pattern's default preferred_providers
+        from modelmux.a2a.patterns import get_pattern as _get_pattern
+        pat = _get_pattern(pattern)
+        if pat:
+            for role_spec in pat.roles.values():
+                if role_spec.preferred_provider:
+                    providers_to_check.add(role_spec.preferred_provider)
+    for prov in providers_to_check:
+        policy_result = check_policy(
+            policy,
+            provider=prov,
+            sandbox=sandbox,
+            timeout=timeout,
+            calls_last_hour=calls_hour,
+            calls_last_day=calls_day,
+        )
+        if not policy_result.allowed:
+            return json.dumps(
+                {"status": "blocked", "error": f"Policy denied provider '{prov}': {policy_result.reason}"},
                 indent=2,
             )
 

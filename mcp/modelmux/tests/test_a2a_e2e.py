@@ -131,17 +131,18 @@ async def test_full_lifecycle_send_get():
         body = resp.json()
         assert "result" in body
         result = body["result"]
-        assert result["id"] == "e2e-1"
+        task_id = result["id"]
+        assert task_id.startswith("task-")  # server-generated ID
         assert result["status"]["state"] in ("completed", "failed")
         assert "contextId" in result
 
         # Get — should return same result
         resp2 = await client.post(
             "/",
-            json=_jsonrpc("tasks/get", {"id": "e2e-1"}, req_id=2),
+            json=_jsonrpc("tasks/get", {"id": task_id}, req_id=2),
         )
         body2 = resp2.json()
-        assert body2["result"]["id"] == "e2e-1"
+        assert body2["result"]["id"] == task_id
         assert body2["result"]["status"]["state"] == result["status"]["state"]
 
 
@@ -296,8 +297,12 @@ async def test_sse_includes_task_id():
                     events.append(current_event)
                     current_event = {}
 
+            # All events should have same server-generated task ID
+            assert len(events) > 0
+            first_id = events[0]["data"]["id"]
+            assert first_id.startswith("task-")
             for ev in events:
-                assert ev["data"]["id"] == "sse-id-1"
+                assert ev["data"]["id"] == first_id
 
 
 # --- Auth tests ---
@@ -346,8 +351,8 @@ async def test_auth_e2e_flow():
 
 
 @pytest.mark.asyncio
-async def test_context_id_persists():
-    """Sending to same task_id should preserve contextId."""
+async def test_context_id_assigned():
+    """Each task should get a contextId, and different tasks get different IDs."""
     app = _build_app(
         adapter=SlowFakeAdapter(response="CONVERGED: ok")
     )
@@ -360,22 +365,24 @@ async def test_context_id_persists():
             "/",
             json=_jsonrpc(
                 "tasks/send",
-                _task_params("first", task_id="ctx-test"),
+                _task_params("first"),
             ),
         )
         ctx1 = r1.json()["result"]["contextId"]
+        assert ctx1  # contextId should be non-empty
 
-        # Second request to same task_id — should get same context
+        # Second request — different task, different context
         r2 = await client.post(
             "/",
             json=_jsonrpc(
                 "tasks/send",
-                _task_params("second", task_id="ctx-test"),
+                _task_params("second"),
                 req_id=2,
             ),
         )
         ctx2 = r2.json()["result"]["contextId"]
-        assert ctx1 == ctx2
+        assert ctx2  # contextId should be non-empty
+        assert ctx1 != ctx2  # different tasks should have different contexts
 
 
 # --- Error propagation ---

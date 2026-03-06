@@ -39,6 +39,7 @@ class GenericAdapter(BaseAdapter):
         session_id: str = "",
         extra_args: dict | None = None,
     ) -> list[str]:
+        _RESERVED_KEYS = {"task", "workdir", "sandbox", "session_id"}
         substitutions = {
             "task": prompt,
             "workdir": workdir,
@@ -46,7 +47,9 @@ class GenericAdapter(BaseAdapter):
             "session_id": session_id,
         }
         if extra_args:
-            substitutions.update({k: str(v) for k, v in extra_args.items()})
+            # Prevent extra_args from overriding built-in substitution keys
+            safe = {k: str(v) for k, v in extra_args.items() if k not in _RESERVED_KEYS}
+            substitutions.update(safe)
 
         args = []
         for arg in self._args_template:

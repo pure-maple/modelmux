@@ -318,7 +318,7 @@ def _cmd_a2a_server(args: argparse.Namespace) -> None:
                 adapter_cache[provider] = adapter_or_cls()
         return adapter_cache[provider]
 
-    host = getattr(args, "host", "0.0.0.0")
+    host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 41520)
     workdir = getattr(args, "workdir", ".")
     sandbox = getattr(args, "sandbox", "read-only")
@@ -378,7 +378,7 @@ def main() -> None:
     # modelmux a2a-server
     a2a_p = subparsers.add_parser("a2a-server", help="Start the A2A HTTP server")
     a2a_p.add_argument(
-        "--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)"
+        "--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1, use 0.0.0.0 for network access)"
     )
     a2a_p.add_argument("--port", type=int, default=41520, help="Port (default: 41520)")
     a2a_p.add_argument("--workdir", default=".", help="Working directory for agents")

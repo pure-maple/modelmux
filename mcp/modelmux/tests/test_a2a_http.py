@@ -302,7 +302,7 @@ def test_e2e_send_then_get():
     send_body = send_resp.json()
     assert "result" in send_body
     task_id = send_body["result"]["id"]
-    assert task_id == "e2e-test-001"
+    assert task_id.startswith("task-")  # server-generated ID
 
     # Get
     get_resp = client.post(
@@ -435,14 +435,13 @@ def test_cancel_completed_task_is_noop():
     """Canceling an already-completed task returns current state."""
     client = _make_client()
     # First send to create a completed task
-    client.post(
+    send_resp = client.post(
         "/",
         json={
             "jsonrpc": "2.0",
             "id": 1,
             "method": "tasks/send",
             "params": {
-                "id": "cancel-test-001",
                 "message": {
                     "role": "user",
                     "parts": [{"type": "text", "text": "do something"}],
@@ -450,6 +449,7 @@ def test_cancel_completed_task_is_noop():
             },
         },
     )
+    task_id = send_resp.json()["result"]["id"]
     # Now cancel it
     cancel_resp = client.post(
         "/",
@@ -457,7 +457,7 @@ def test_cancel_completed_task_is_noop():
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tasks/cancel",
-            "params": {"id": "cancel-test-001"},
+            "params": {"id": task_id},
         },
     )
     body = cancel_resp.json()

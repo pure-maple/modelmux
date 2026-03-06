@@ -71,7 +71,15 @@ class ProviderConfig:
                 if val:
                     env["DASHSCOPE_CODING_API_KEY"] = val
 
-        env.update(self.extra_env)
+        # Block dangerous env vars that could hijack subprocess execution
+        _BLOCKED_ENV = {
+            "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH",
+            "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+            "PYTHONPATH", "HOME", "SHELL", "USER",
+        }
+        for k, v in self.extra_env.items():
+            if k.upper() not in _BLOCKED_ENV:
+                env[k] = v
         return env
 
 

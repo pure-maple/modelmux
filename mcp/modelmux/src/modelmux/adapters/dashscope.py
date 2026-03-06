@@ -121,12 +121,11 @@ class DashScopeAdapter(BaseAdapter):
         if extra_args and extra_args.get("model"):
             model = extra_args["model"]
 
-        # Base URL: env_overrides (from config) > extra_args > default
+        # Base URL: env_overrides (from config) > default
+        # Note: base_url is NOT accepted from extra_args to prevent SSRF
         base_url = self._base_url
         if env_overrides and env_overrides.get("DASHSCOPE_BASE_URL"):
             base_url = env_overrides["DASHSCOPE_BASE_URL"]
-        if extra_args and extra_args.get("base_url"):
-            base_url = extra_args["base_url"]
 
         if on_progress:
             on_progress(f"Calling DashScope API ({model})...")
