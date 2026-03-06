@@ -26,10 +26,10 @@ def log_result(result_dict: dict, task: str = "", source: str = "dispatch") -> N
         path.parent.mkdir(parents=True, exist_ok=True)
 
         entry = {
+            **result_dict,
             "ts": time.time(),
             "source": source,
             "task": task[:500],
-            **result_dict,
         }
 
         with open(path, "a", encoding="utf-8") as f:

@@ -75,11 +75,13 @@ def read_recent(hours: float = 1.0) -> list[AuditEntry]:
                 try:
                     data = json.loads(line)
                     ts_str = data.get("timestamp", "")
-                    # Parse ISO timestamp to epoch
+                    # Parse ISO timestamp to epoch (treat naive as UTC)
                     if ts_str:
                         import datetime
 
                         dt = datetime.datetime.fromisoformat(ts_str)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=datetime.timezone.utc)
                         if dt.timestamp() >= cutoff:
                             entries.append(
                                 AuditEntry(

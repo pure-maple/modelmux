@@ -218,7 +218,8 @@ class CollaborationEngine:
             turns = await asyncio.gather(*tasks)
             return list(turns)
         else:
-            # Sequential execution
+            # Sequential execution — collect turns but don't modify collab
+            # State changes (turns append, convergence check) happen in run()
             turns: list[Turn] = []
             for role_name, role_spec in roles_to_run:
                 self._progress(
@@ -234,11 +235,9 @@ class CollaborationEngine:
                     round_spec.instruction_override,
                 )
                 turns.append(turn)
-                # Update context between sequential turns in same round
+                # Update context between sequential turns for prompt building
                 ctx.update_after_turn(turn, collab)
-                collab.turns.append(turn)
-            # Return empty — turns already appended
-            return []
+            return turns
 
     async def _dispatch_role(
         self,

@@ -254,16 +254,19 @@ class BaseAdapter:
                 timeout=timeout,
                 env_overrides=env_overrides,
             )
-            for line in gen:
+            # Manually iterate to capture generator return value.
+            # `for line in gen:` swallows the StopIteration that carries
+            # the return value, so we use a while/next loop instead.
+            while True:
+                try:
+                    line = next(gen)
+                except StopIteration as e:
+                    exit_code = e.value if e.value is not None else 0
+                    break
                 lines.append(line)
                 line_count += 1
                 if on_progress:
                     on_progress(line)
-            # Get the return value (exit code) from the generator
-            try:
-                next(gen)
-            except StopIteration as e:
-                exit_code = e.value if e.value is not None else 0
         except FileNotFoundError as e:
             return AdapterResult(
                 run_id=run_id,
