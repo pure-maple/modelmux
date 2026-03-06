@@ -10,6 +10,8 @@ from __future__ import annotations
 import datetime
 import json
 import re
+import time
+import uuid
 from pathlib import Path
 from typing import Literal
 
@@ -24,6 +26,7 @@ from modelmux.config import (
 )
 from modelmux.detect import CallerInfo, detect_caller, get_excluded_providers
 from modelmux.policy import check_policy, load_policy
+from modelmux.status import DispatchStatus, list_active, remove_status, write_status
 
 mcp = FastMCP(
     "modelmux",
@@ -291,11 +294,23 @@ async def mux_dispatch(
         actual_provider, model, profile, reasoning_effort, active_prof
     )
 
-    # Progress callback via MCP context
-    progress_messages: list[str] = []
+    # Status tracking for real-time monitoring
+    run_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+    dispatch_status = DispatchStatus(
+        run_id=run_id,
+        provider=actual_provider,
+        task_summary=task[:200],
+        status="running",
+        started_at=start_time,
+    )
+    write_status(dispatch_status)
 
+    # Progress callback via MCP context
     def on_progress(msg: str) -> None:
-        progress_messages.append(msg)
+        dispatch_status.output_preview = msg[:200]
+        dispatch_status.elapsed_seconds = round(time.time() - start_time, 1)
+        write_status(dispatch_status)
 
     await ctx.info(f"Dispatching to {actual_provider}...")
 
@@ -310,9 +325,7 @@ async def mux_dispatch(
         on_progress=on_progress,
     )
 
-    # Execution failover: if the primary provider errored, try alternatives.
-    # Skip failover for: timeouts (already waited), sessions (provider-specific),
-    # or when failover is disabled.
+    # Execution failover
     failover_from = ""
     can_failover = failover and result.status == "error" and not session_id
     if can_failover:
@@ -326,6 +339,12 @@ async def mux_dispatch(
                 f"{actual_provider} failed ({result.error}), retrying with {fb_name}..."
             )
             failover_from = actual_provider
+
+            # Update status for failover
+            dispatch_status.provider = fb_name
+            dispatch_status.failover_from = actual_provider
+            dispatch_status.status = "running"
+            write_status(dispatch_status)
 
             fb_extra, fb_env = _build_extra_args(
                 fb_name, model, profile, reasoning_effort, active_prof
@@ -345,6 +364,9 @@ async def mux_dispatch(
                 adapter = fb_adapter
                 result = fb_result
                 break
+
+    # Clean up status file (dispatch complete)
+    remove_status(run_id)
 
     result_dict = result.to_dict()
     if provider == "auto":
@@ -424,6 +446,19 @@ async def mux_check(ctx: Context) -> str:
         "max_calls_per_hour": policy.max_calls_per_hour or "unlimited",
         "max_calls_per_day": policy.max_calls_per_day or "unlimited",
     }
+
+    # Active dispatches
+    active = list_active()
+    if active:
+        status["_active_dispatches"] = [
+            {
+                "run_id": s.run_id,
+                "provider": s.provider,
+                "task_summary": s.task_summary,
+                "elapsed_seconds": round(time.time() - s.started_at, 1),
+            }
+            for s in active
+        ]
 
     # Audit summary
     status["_audit"] = get_audit_stats()

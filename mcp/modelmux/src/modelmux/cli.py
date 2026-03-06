@@ -4,6 +4,7 @@ Usage:
   modelmux           Start the MCP server (stdio transport)
   modelmux init      Interactive configuration wizard
   modelmux check     Quick CLI availability check
+  modelmux status    Monitor active dispatches in real-time
   modelmux version   Show version
 """
 
@@ -46,6 +47,58 @@ def _cmd_check() -> None:
     print()
 
 
+def _cmd_status(args: argparse.Namespace) -> None:
+    """Monitor active dispatches."""
+    import time
+
+    from modelmux.status import list_active
+
+    watch = getattr(args, "watch", False)
+
+    def _render() -> bool:
+        active = list_active()
+        if not active:
+            print("  No active dispatches.")
+            return False
+
+        now = time.time()
+        for s in active:
+            elapsed = round(now - s.started_at, 1)
+            icon = "\033[0;33m●\033[0m"  # yellow dot
+            if s.failover_from:
+                icon = "\033[0;35m↻\033[0m"  # purple retry
+            line = (
+                f"  {icon} {s.run_id}  "
+                f"{s.provider:8s} "
+                f"{elapsed:6.1f}s  "
+                f"{s.task_summary[:60]}"
+            )
+            print(line)
+            if s.output_preview:
+                print(f"    └─ {s.output_preview[:70]}")
+        return True
+
+    if watch:
+        print("modelmux — Live Dispatch Monitor (Ctrl+C to stop)")
+        print("=" * 60)
+        try:
+            while True:
+                # Clear previous output and re-render
+                print("\033[2J\033[H", end="")  # clear screen
+                print("modelmux — Live Dispatch Monitor")
+                print(f"  {time.strftime('%H:%M:%S')}  (Ctrl+C to stop)")
+                print("-" * 60)
+                _render()
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\nStopped.")
+    else:
+        print("modelmux — Active Dispatches")
+        print("-" * 40)
+        _render()
+        print()
+
+
 def _cmd_version() -> None:
     from modelmux import __version__
 
@@ -55,13 +108,13 @@ def _cmd_version() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="modelmux",
-        description="Model multiplexer — multi-model AI collaboration MCP server",
+        description=("Model multiplexer — multi-model AI collaboration MCP server"),
     )
     subparsers = parser.add_subparsers(dest="command")
 
     # modelmux init
-    init_parser = subparsers.add_parser("init", help="Interactive configuration wizard")
-    init_parser.add_argument(
+    init_p = subparsers.add_parser("init", help="Interactive configuration wizard")
+    init_p.add_argument(
         "--scope",
         choices=["user", "project", "auto"],
         default="auto",
@@ -71,18 +124,28 @@ def main() -> None:
     # modelmux check
     subparsers.add_parser("check", help="Check which model CLIs are available")
 
+    # modelmux status
+    status_p = subparsers.add_parser("status", help="Monitor active dispatches")
+    status_p.add_argument(
+        "-w",
+        "--watch",
+        action="store_true",
+        help="Live-refresh mode (updates every second)",
+    )
+
     # modelmux version
     subparsers.add_parser("version", help="Show version")
 
     args = parser.parse_args()
 
     if args.command is None:
-        # No subcommand → start MCP server (default behavior)
         _cmd_server()
     elif args.command == "init":
         _cmd_init(args)
     elif args.command == "check":
         _cmd_check()
+    elif args.command == "status":
+        _cmd_status(args)
     elif args.command == "version":
         _cmd_version()
     else:
