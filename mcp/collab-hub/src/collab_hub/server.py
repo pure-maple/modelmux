@@ -12,6 +12,7 @@ and Gemini-3.1-Pro-Preview architecture consultation.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -24,13 +25,53 @@ mcp = FastMCP(
     instructions=(
         "Multi-model AI collaboration hub. Use collab_dispatch to send "
         "tasks to different AI models (codex, gemini, claude) and receive "
-        "structured results. Supports session continuity for multi-turn "
-        "conversations."
+        "structured results. Use provider='auto' for smart routing. "
+        "Supports session continuity for multi-turn conversations."
     ),
 )
 
 # Adapter instances (lazy-initialized)
 _adapter_cache: dict[str, BaseAdapter] = {}
+
+# Auto-routing keyword patterns
+_ROUTE_PATTERNS: dict[str, list[re.Pattern]] = {
+    "gemini": [
+        re.compile(r"\b(frontend|ui|ux|css|html|react|vue|svelte|angular|tailwind|"
+                   r"component|layout|responsive|style|theme|dashboard|"
+                   r"page|widget|modal|button|form|animation|figma|"
+                   r"visual|color|font|icon|image|illustration)\b", re.I),
+    ],
+    "codex": [
+        re.compile(r"\b(implement|algorithm|backend|api|endpoint|database|sql|"
+                   r"debug|fix|bug|optimize|refactor|function|class|test|"
+                   r"server|middleware|auth|crud|migration|schema|query|"
+                   r"sort|search|tree|graph|linked.?list|hash|cache)\b", re.I),
+    ],
+    "claude": [
+        re.compile(r"\b(architect|design.?pattern|review|analyze|explain|"
+                   r"trade.?off|compare|evaluate|plan|strategy|"
+                   r"security|audit|vulnerabilit|threat|"
+                   r"documentation|spec|rfc|adr|critique)\b", re.I),
+    ],
+}
+
+
+def _auto_route(task: str) -> str:
+    """Pick the best provider based on task keywords.
+
+    Returns the provider with the most keyword matches.
+    Falls back to 'codex' as the most general-purpose option.
+    """
+    scores: dict[str, int] = {}
+    for provider, patterns in _ROUTE_PATTERNS.items():
+        score = sum(len(p.findall(task)) for p in patterns)
+        scores[provider] = score
+
+    best = max(scores, key=lambda k: scores[k])
+    if scores[best] == 0:
+        # No keyword matches — default to codex (most general)
+        return "codex"
+    return best
 
 
 def _get_adapter(provider: str) -> BaseAdapter:
@@ -47,7 +88,7 @@ def _get_adapter(provider: str) -> BaseAdapter:
 
 @mcp.tool()
 async def collab_dispatch(
-    provider: Literal["codex", "gemini", "claude"],
+    provider: Literal["auto", "codex", "gemini", "claude"],
     task: str,
     workdir: str = ".",
     sandbox: Literal["read-only", "write", "full"] = "read-only",
@@ -58,9 +99,10 @@ async def collab_dispatch(
     """Dispatch a task to an AI model CLI and return the result.
 
     Args:
-        provider: Which model to use — "codex" (code generation, algorithms,
-            debugging), "gemini" (frontend, design, multimodal), or "claude"
-            (architecture, reasoning, review).
+        provider: Which model to use — "auto" (smart routing based on task),
+            "codex" (code generation, algorithms, debugging), "gemini"
+            (frontend, design, multimodal), or "claude" (architecture,
+            reasoning, review).
         task: The task description / prompt to send to the model.
         workdir: Working directory for the model to operate in.
         sandbox: Security level — "read-only" (default, safe), "write"
@@ -70,21 +112,43 @@ async def collab_dispatch(
         timeout: Maximum seconds to wait (default 300).
         model: Override the specific model version (optional).
     """
+    # Auto-route if needed
+    actual_provider = provider
+    if provider == "auto":
+        actual_provider = _auto_route(task)
+
     # Resolve workdir to absolute path
     resolved_workdir = str(Path(workdir).resolve())
 
-    adapter = _get_adapter(provider)
+    adapter = _get_adapter(actual_provider)
 
     if not adapter.check_available():
-        return json.dumps({
-            "run_id": "",
-            "provider": provider,
-            "status": "error",
-            "error": (
-                f"{provider} CLI is not installed or not on PATH. "
-                f"Please install it first."
-            ),
-        }, indent=2)
+        # If auto-routed provider unavailable, try fallback
+        if provider == "auto":
+            for fallback in ["codex", "gemini", "claude"]:
+                if fallback != actual_provider:
+                    fb_adapter = _get_adapter(fallback)
+                    if fb_adapter.check_available():
+                        actual_provider = fallback
+                        adapter = fb_adapter
+                        break
+            else:
+                return json.dumps({
+                    "run_id": "",
+                    "provider": actual_provider,
+                    "status": "error",
+                    "error": "No model CLIs available on PATH.",
+                }, indent=2)
+        else:
+            return json.dumps({
+                "run_id": "",
+                "provider": actual_provider,
+                "status": "error",
+                "error": (
+                    f"{actual_provider} CLI is not installed or not on PATH. "
+                    f"Please install it first."
+                ),
+            }, indent=2)
 
     extra_args: dict = {}
     if model:
@@ -99,7 +163,10 @@ async def collab_dispatch(
         extra_args=extra_args if extra_args else None,
     )
 
-    return json.dumps(result.to_dict(), indent=2, ensure_ascii=False)
+    result_dict = result.to_dict()
+    if provider == "auto":
+        result_dict["routed_from"] = "auto"
+    return json.dumps(result_dict, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
