@@ -99,7 +99,10 @@ Web Dashboard (modelmux dashboard --port 41521)
 1. Edit `src/modelmux/` files
 2. `uv sync` (if deps changed)
 3. Run tests + lint
-4. Commit → push → tag `vX.Y.Z` → auto-publish to PyPI
+4. **Create `docs/releases/vX.Y.Z.md`** — bilingual release notes (from CHANGELOG)
+5. Commit → push → tag `vX.Y.Z` → auto-publish to PyPI + GitHub Release
+
+**Release notes are mandatory before tagging.** CI reads `docs/releases/{tag}.md` for GitHub Release content. Missing this file = empty release page. Use `../.orchestrator/hooks/pre-release-check.sh` to verify.
 
 ## Conventions
 
