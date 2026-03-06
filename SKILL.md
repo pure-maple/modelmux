@@ -23,7 +23,7 @@ No tmux, no Bash permissions needed.
 
 ```
 collab_dispatch(
-  provider="codex",           # "codex" | "gemini" | "claude"
+  provider="auto",            # "auto" | "codex" | "gemini" | "claude"
   task="Review this code for security issues",
   workdir="/path/to/project",
   sandbox="read-only",        # "read-only" | "write" | "full"
@@ -61,6 +61,20 @@ multi-model collaboration.
 | Frontend / UI / CSS / React | **Gemini** | Design sense and multimodal capability |
 | Architecture / review / synthesis | **Claude** | Deep reasoning and quality control |
 | Analysis / audit | **Both simultaneously** | Cross-validation eliminates blind spots |
+
+## Smart Routing (provider="auto")
+
+When `provider="auto"`, the hub automatically picks the best model based on
+task keywords:
+
+- **Frontend/UI/CSS/React/Vue** keywords → routes to **Gemini**
+- **Algorithm/backend/API/debug/fix** keywords → routes to **Codex**
+- **Architecture/review/security/analyze** keywords → routes to **Claude**
+- **No strong signal** → defaults to **Codex** (most general-purpose)
+
+The result includes `"routed_from": "auto"` so you know routing was automatic.
+If the chosen model's CLI is unavailable, it automatically falls back to the
+next available model.
 
 ## Workflow Modes
 
