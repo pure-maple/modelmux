@@ -2,6 +2,16 @@
 
 Model multiplexer — unified MCP server for cross-platform multi-model AI collaboration.
 
+## Cross-Agent Collaboration
+
+本项目与 clawmux 项目通过共享文档协调开发：
+
+- **`../AGENTS.md`** — 跨 agent 协调中心（状态同步、接口约定、优先级对齐）
+- **`../shared/`** — 详细技术文档和集成指南
+
+**重要**: 接口变更时必须同步更新 `../AGENTS.md` 和 `../shared/` 下相关文档。
+完成重要里程碑时，在 `../AGENTS.md` 的变更日志中记录。
+
 ## Quick Reference
 
 - **Package**: `mcp/modelmux/` (pyproject.toml, src/modelmux/)
