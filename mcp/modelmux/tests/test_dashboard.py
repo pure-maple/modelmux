@@ -217,6 +217,69 @@ class TestApiTrends:
         assert captured["bucket_minutes"] == 30
 
 
+class TestApiCollaborations:
+    def test_empty_collaborations(self, client):
+        with patch("modelmux.history.read_history", return_value=[]):
+            resp = client.get("/api/collaborations")
+        data = resp.json()
+        assert data["count"] == 0
+        assert data["collaborations"] == []
+
+    def test_collaborations_with_data(self, client):
+        mock_entries = [
+            {
+                "ts": 1700000000,
+                "task_id": "collab-1",
+                "pattern": "review",
+                "state": "completed",
+                "rounds": 2,
+                "duration_seconds": 45.0,
+                "providers_used": ["codex", "claude"],
+                "task": "Implement a rate limiter",
+                "turns": [
+                    {
+                        "turn_id": "t1",
+                        "role": "implementer",
+                        "provider": "codex",
+                        "status": "success",
+                        "duration": 15.0,
+                        "output_summary": "Implemented sliding window...",
+                    },
+                    {
+                        "turn_id": "t2",
+                        "role": "reviewer",
+                        "provider": "claude",
+                        "status": "success",
+                        "duration": 10.0,
+                        "output_summary": "CONVERGED: looks good",
+                    },
+                ],
+            }
+        ]
+        with patch("modelmux.history.read_history", return_value=mock_entries):
+            resp = client.get("/api/collaborations")
+        data = resp.json()
+        assert data["count"] == 1
+        c = data["collaborations"][0]
+        assert c["pattern"] == "review"
+        assert c["state"] == "completed"
+        assert len(c["turns"]) == 2
+        assert c["turns"][0]["role"] == "implementer"
+
+    def test_collaborations_query_params(self, client):
+        captured = {}
+
+        def mock_read(query):
+            captured["source"] = query.source
+            captured["limit"] = query.limit
+            return []
+
+        with patch("modelmux.history.read_history", side_effect=mock_read):
+            client.get("/api/collaborations?limit=3")
+        assert captured["source"] == "collaborate"
+        assert captured["limit"] == 3
+
+
 class TestCreateApp:
     def test_app_has_all_routes(self):
         app = create_app()
@@ -228,3 +291,4 @@ class TestCreateApp:
         assert "/api/providers" in paths
         assert "/api/costs" in paths
         assert "/api/trends" in paths
+        assert "/api/collaborations" in paths

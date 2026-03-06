@@ -110,6 +110,35 @@ async def api_trends(request: Request) -> JSONResponse:
     return JSONResponse(trends)
 
 
+async def api_collaborations(request: Request) -> JSONResponse:
+    """GET /api/collaborations — collaboration history with turn details."""
+    from modelmux.history import HistoryQuery, read_history
+
+    limit = int(request.query_params.get("limit", "10"))
+    hours = float(request.query_params.get("hours", "0"))
+
+    entries = read_history(
+        HistoryQuery(limit=limit, source="collaborate", hours=hours)
+    )
+    # Each entry should have turns array from mux_collaborate
+    collabs = []
+    for e in entries:
+        collabs.append(
+            {
+                "task_id": e.get("task_id", ""),
+                "pattern": e.get("pattern", ""),
+                "state": e.get("state", ""),
+                "rounds": e.get("rounds", 0),
+                "duration_seconds": e.get("duration_seconds", 0),
+                "providers_used": e.get("providers_used", []),
+                "turns": e.get("turns", []),
+                "task": e.get("task", "")[:200],
+                "ts": e.get("ts", 0),
+            }
+        )
+    return JSONResponse({"collaborations": collabs, "count": len(collabs)})
+
+
 async def api_costs(request: Request) -> JSONResponse:
     """GET /api/costs — cost breakdown."""
     from modelmux.costs import PRICING
@@ -168,6 +197,15 @@ th { text-align: left; color: var(--text-dim); padding: 0.4rem 0.5rem; border-bo
 td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
 .loading { color: var(--text-dim); font-style: italic; }
 #refresh-info { color: var(--text-dim); font-size: 0.75rem; float: right; }
+.collab-item { border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem; }
+.collab-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+.collab-pattern { color: var(--accent); font-weight: 600; }
+.collab-state { font-size: 0.8rem; }
+.timeline { display: flex; gap: 2px; align-items: stretch; margin-top: 0.5rem; min-height: 32px; }
+.turn-bar { flex: 1; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #fff; min-width: 40px; cursor: default; }
+.turn-bar.success { background: #238636; }
+.turn-bar.error { background: #da3633; }
+.turn-bar.timeout { background: #9e6a03; }
 </style>
 </head>
 <body>
@@ -207,6 +245,11 @@ td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
     <h2>Success Rate & Latency</h2>
     <canvas id="chart-perf" height="180"></canvas>
   </div>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+  <h2>A2A Collaborations</h2>
+  <div id="collabs"><p class="loading">Loading...</p></div>
 </div>
 
 <div class="card" style="margin-top:1rem;">
@@ -318,8 +361,32 @@ async function refreshTrends() {
   else { perfChart = new Chart($('chart-perf'), {type:'line', data:{labels, datasets:[{label:'Success %',data:rates,borderColor:'#58a6ff',yAxisID:'y'},{label:'Avg Duration (s)',data:durations,borderColor:'#d29922',yAxisID:'y1'}]}, options:{...chartOpts, scales:{...chartOpts.scales, y:{...chartOpts.scales.y, position:'left',min:0,max:100}, y1:{ticks:{color:'#8b949e'},grid:{drawOnChartArea:false},position:'right',min:0}}}}); }
 }
 
+async function refreshCollabs() {
+  const d = await fetchJSON('/api/collaborations?limit=5');
+  if (!d || d.count === 0) { $('collabs').innerHTML = '<p style="color:var(--text-dim)">No collaborations yet</p>'; return; }
+  let h = '';
+  d.collaborations.forEach(c => {
+    const t = c.ts ? new Date(c.ts*1000).toLocaleString() : '?';
+    const stCls = c.state === 'completed' ? 'color:var(--green)' : c.state === 'failed' ? 'color:var(--red)' : 'color:var(--yellow)';
+    h += `<div class="collab-item">`;
+    h += `<div class="collab-header"><span><span class="collab-pattern">${c.pattern}</span> — ${c.task.slice(0,80)}</span>`;
+    h += `<span class="collab-state" style="${stCls}">${c.state} (${c.rounds} rounds, ${c.duration_seconds}s)</span></div>`;
+    h += `<div style="font-size:0.75rem;color:var(--text-dim)">Providers: ${(c.providers_used||[]).join(', ')} | ${t}</div>`;
+    if (c.turns && c.turns.length) {
+      h += '<div class="timeline">';
+      c.turns.forEach(turn => {
+        const cls = turn.status === 'success' ? 'success' : turn.status === 'timeout' ? 'timeout' : 'error';
+        h += `<div class="turn-bar ${cls}" title="${turn.role} (${turn.provider}) ${turn.duration}s\n${(turn.output_summary||'').slice(0,80)}">${turn.role}</div>`;
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  $('collabs').innerHTML = h;
+}
+
 async function refresh() {
-  await Promise.all([refreshActive(), refreshProviders(), refreshStats(), refreshCosts(), refreshHistory(), refreshTrends()]);
+  await Promise.all([refreshActive(), refreshProviders(), refreshStats(), refreshCosts(), refreshHistory(), refreshTrends(), refreshCollabs()]);
 }
 refresh();
 setInterval(refresh, 5000);
@@ -340,6 +407,7 @@ def create_app() -> Starlette:
             Route("/api/providers", api_providers),
             Route("/api/costs", api_costs),
             Route("/api/trends", api_trends),
+            Route("/api/collaborations", api_collaborations),
         ],
     )
 
