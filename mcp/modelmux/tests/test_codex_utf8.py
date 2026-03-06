@@ -6,6 +6,7 @@ import tempfile
 from modelmux.adapters.codex import (
     CodexAdapter,
     _create_ascii_symlink,
+    _find_git_dir,
     _needs_ascii_workaround,
 )
 
@@ -58,6 +59,48 @@ def test_symlink_prefix():
         os.rmdir(target)
 
 
+# --- _find_git_dir ---
+
+
+def test_find_git_dir_in_repo():
+    """Should find .git directory in an actual git repo."""
+    # Use the modelmux repo itself as test subject
+    src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    result = _find_git_dir(src_dir)
+    # Should find a .git dir somewhere above tests/
+    assert result is not None
+    assert os.path.exists(result)
+
+
+def test_find_git_dir_in_tmp():
+    """A random tmpdir has no .git — should return None."""
+    with tempfile.TemporaryDirectory() as d:
+        assert _find_git_dir(d) is None
+
+
+def test_find_git_dir_with_git_directory():
+    """Should find .git when it's a directory."""
+    with tempfile.TemporaryDirectory() as d:
+        git_dir = os.path.join(d, ".git")
+        os.mkdir(git_dir)
+        result = _find_git_dir(d)
+        assert result == os.path.realpath(git_dir)
+
+
+def test_find_git_dir_with_git_file():
+    """Should follow .git file pointer (worktree style)."""
+    with tempfile.TemporaryDirectory() as d:
+        real_git = os.path.join(d, "real-git-dir")
+        os.mkdir(real_git)
+        sub = os.path.join(d, "sub")
+        os.mkdir(sub)
+        git_file = os.path.join(sub, ".git")
+        with open(git_file, "w") as f:
+            f.write(f"gitdir: {real_git}\n")
+        result = _find_git_dir(sub)
+        assert result == real_git
+
+
 # --- CodexAdapter.build_command uses workdir as-is ---
 
 
@@ -91,9 +134,7 @@ def test_run_sets_pwd_env_for_non_ascii():
         captured_env.update(kwargs.get("env_overrides") or {})
         from modelmux.adapters.base import AdapterResult
 
-        return AdapterResult(
-            provider="codex", status="success", output="ok"
-        )
+        return AdapterResult(provider="codex", status="success", output="ok")
 
     with patch.object(
         CodexAdapter.__bases__[0],
@@ -111,6 +152,62 @@ def test_run_sets_pwd_env_for_non_ascii():
     assert _needs_ascii_workaround(captured_env["PWD"]) is False
 
 
+def test_run_sets_git_env_for_non_ascii_in_repo():
+    """GIT_WORK_TREE and GIT_DIR should be set for non-ASCII git repos."""
+    import asyncio
+    from unittest.mock import patch
+
+    adapter = CodexAdapter()
+    captured = {}
+
+    async def mock_super_run(self_, **kwargs):
+        captured.update(kwargs.get("env_overrides") or {})
+        captured["workdir"] = kwargs.get("workdir", "")
+        from modelmux.adapters.base import AdapterResult
+
+        return AdapterResult(provider="codex", status="success", output="ok")
+
+    # Create a non-ASCII dir with a .git inside
+    with tempfile.TemporaryDirectory() as base:
+        non_ascii = os.path.join(base, "我的项目")
+        os.mkdir(non_ascii)
+        os.mkdir(os.path.join(non_ascii, ".git"))
+
+        with patch.object(CodexAdapter.__bases__[0], "run", new=mock_super_run):
+            asyncio.run(adapter.run(prompt="test", workdir=non_ascii))
+
+    assert "GIT_WORK_TREE" in captured
+    assert "GIT_DIR" in captured
+    assert _needs_ascii_workaround(captured["GIT_WORK_TREE"]) is False
+    assert captured["GIT_DIR"] == os.path.realpath(os.path.join(non_ascii, ".git"))
+
+
+def test_run_no_git_env_without_git_dir():
+    """Non-ASCII dir without .git should not set GIT_* env vars."""
+    import asyncio
+    from unittest.mock import patch
+
+    adapter = CodexAdapter()
+    captured = {}
+
+    async def mock_super_run(self_, **kwargs):
+        captured.update(kwargs.get("env_overrides") or {})
+        from modelmux.adapters.base import AdapterResult
+
+        return AdapterResult(provider="codex", status="success", output="ok")
+
+    with tempfile.TemporaryDirectory() as base:
+        non_ascii = os.path.join(base, "数据目录")
+        os.mkdir(non_ascii)
+
+        with patch.object(CodexAdapter.__bases__[0], "run", new=mock_super_run):
+            asyncio.run(adapter.run(prompt="test", workdir=non_ascii))
+
+    assert "PWD" in captured
+    assert "GIT_WORK_TREE" not in captured
+    assert "GIT_DIR" not in captured
+
+
 def test_run_preserves_existing_env_overrides():
     """PWD should be added without clobbering existing env_overrides."""
     import asyncio
@@ -123,9 +220,7 @@ def test_run_preserves_existing_env_overrides():
         captured_env.update(kwargs.get("env_overrides") or {})
         from modelmux.adapters.base import AdapterResult
 
-        return AdapterResult(
-            provider="codex", status="success", output="ok"
-        )
+        return AdapterResult(provider="codex", status="success", output="ok")
 
     with patch.object(
         CodexAdapter.__bases__[0],
@@ -156,17 +251,13 @@ def test_run_no_pwd_for_ascii_workdir():
         captured_env.update(kwargs.get("env_overrides") or {})
         from modelmux.adapters.base import AdapterResult
 
-        return AdapterResult(
-            provider="codex", status="success", output="ok"
-        )
+        return AdapterResult(provider="codex", status="success", output="ok")
 
     with patch.object(
         CodexAdapter.__bases__[0],
         "run",
         new=mock_super_run,
     ):
-        asyncio.run(
-            adapter.run(prompt="test", workdir="/tmp/ascii/path")
-        )
+        asyncio.run(adapter.run(prompt="test", workdir="/tmp/ascii/path"))
 
     assert "PWD" not in captured_env

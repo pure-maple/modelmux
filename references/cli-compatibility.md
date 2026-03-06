@@ -107,29 +107,6 @@ GEMINI_MODEL="gemini-3-pro"
 
 cc-switch 中记录的 Gemini 中继服务：PackyCode、Cubence、AIGoCode 等
 
-## cc-switch 架构分析
+## Related Tools
 
-### 定位
-
-cc-switch 是**配置管理工具**（切换 CLI 连接的模型/Provider），而我们的 modelmux 是**任务编排工具**（跨 CLI 分发任务）。两者互补。
-
-### 核心机制
-
-1. **直接写入 CLI 原生配置文件**：
-   - Claude Code → `settings.json` env 块
-   - Codex CLI → `auth.json` + `config.toml`
-   - Gemini CLI → `.env` 文件
-
-2. **本地代理服务器**（Rust 实现）：
-   - Anthropic ↔ OpenAI API 格式互转
-   - 自动故障转移 + 断路器
-   - Provider 健康监控
-   - 热切换（不需要重启 CLI）
-
-3. **50+ 预设 Provider 配置**：一键切换到 DeepSeek、智谱、Ollama 等
-
-### 对我们的启发
-
-- **不要重复 cc-switch 的 GUI 配置管理**——那是它的领域
-- **可以借鉴 env 注入机制**——在 subprocess 启动时注入环境变量，实现按任务级别的 Provider 切换
-- **可以与 cc-switch 共存**——用户用 cc-switch 管理全局 Provider，用 modelmux 管理任务级别的编排
+- **cc-switch**: Configuration management tool for switching CLI model/provider connections. Complements modelmux — cc-switch manages global provider config, modelmux handles task-level orchestration.

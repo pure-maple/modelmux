@@ -102,7 +102,7 @@ def read_history(query: HistoryQuery | None = None) -> list[dict]:
     return entries[-q.limit :][::-1]
 
 
-def get_history_stats(hours: float = 0) -> dict:
+def get_history_stats(hours: float = 0, include_costs: bool = False) -> dict:
     """Compute aggregated stats from history."""
     path = _history_file()
     if not path.exists():
@@ -113,6 +113,7 @@ def get_history_stats(hours: float = 0) -> dict:
     total = 0
     providers: dict[str, dict] = {}
     sources: dict[str, int] = {}
+    cost_entries: list[dict] = []
 
     try:
         with open(path, encoding="utf-8") as f:
@@ -147,6 +148,9 @@ def get_history_stats(hours: float = 0) -> dict:
                 else:
                     ps["error"] += 1
                 ps["total_duration"] += data.get("duration_seconds", 0)
+
+                if include_costs and data.get("token_usage"):
+                    cost_entries.append(data)
     except OSError:
         return {"total": 0}
 
@@ -157,10 +161,17 @@ def get_history_stats(hours: float = 0) -> dict:
             ps["success_rate"] = round(ps["success"] / ps["calls"] * 100, 1)
         del ps["total_duration"]
 
-    return {
+    result = {
         "total": total,
         "by_provider": providers,
         "by_source": sources,
         "file": str(path),
         "file_size_bytes": os.path.getsize(path) if path.exists() else 0,
     }
+
+    if include_costs and cost_entries:
+        from modelmux.costs import aggregate_costs
+
+        result["costs"] = aggregate_costs(cost_entries)
+
+    return result

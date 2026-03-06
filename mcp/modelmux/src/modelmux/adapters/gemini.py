@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from modelmux.adapters.base import BaseAdapter
+from modelmux.adapters.base import BaseAdapter, TokenUsage
 
 # Known Gemini CLI deprecation warnings to filter out
 DEPRECATION_MARKERS = [
@@ -98,3 +98,32 @@ class GeminiAdapter(BaseAdapter):
         agent_text = "\n".join(agent_messages)
         error_text = "\n".join(errors)
         return agent_text, session_id, error_text
+
+    def parse_token_usage(self, lines: list[str]) -> TokenUsage | None:
+        """Extract token usage from Gemini stream-json events.
+
+        Gemini may include usageMetadata in response events with
+        promptTokenCount, candidatesTokenCount, totalTokenCount.
+        """
+        for line in reversed(lines):
+            try:
+                data = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            usage = data.get("usageMetadata")
+            if not usage or not isinstance(usage, dict):
+                continue
+
+            input_t = usage.get("promptTokenCount", 0)
+            output_t = usage.get("candidatesTokenCount", 0)
+            total_t = usage.get("totalTokenCount", 0)
+            if not total_t:
+                total_t = input_t + output_t
+            if input_t or output_t or total_t:
+                return TokenUsage(
+                    input_tokens=input_t,
+                    output_tokens=output_t,
+                    total_tokens=total_t,
+                )
+        return None

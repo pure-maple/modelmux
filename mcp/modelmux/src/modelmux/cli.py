@@ -125,9 +125,11 @@ def _cmd_history(args: argparse.Namespace) -> None:
 
     from modelmux.history import HistoryQuery, get_history_stats, read_history
 
+    show_costs = getattr(args, "costs", False)
+
     if getattr(args, "stats", False):
         hours = getattr(args, "hours", 0)
-        stats = get_history_stats(hours=hours)
+        stats = get_history_stats(hours=hours, include_costs=show_costs)
         if not stats.get("total"):
             print("  No history data.")
             return
@@ -148,6 +150,30 @@ def _cmd_history(args: argparse.Namespace) -> None:
                 f"{rate:5.1f}% success  "
                 f"avg {avg:.1f}s"
             )
+
+        if show_costs and stats.get("costs"):
+            costs = stats["costs"]
+            print()
+            print("Cost Estimation")
+            print("-" * 50)
+            print(
+                f"  Entries with token data: {costs['entries_with_usage']}"
+            )
+            print(
+                f"  Total tokens: "
+                f"{costs['total_input_tokens']:,} in / "
+                f"{costs['total_output_tokens']:,} out"
+            )
+            print(f"  Estimated cost: ${costs['total_cost_usd']:.4f} USD")
+            for cp, cd in costs.get("by_provider", {}).items():
+                print(
+                    f"    {cp:8s}  "
+                    f"{cd['calls']:3d} calls  "
+                    f"{cd['input_tokens']:,} in / "
+                    f"{cd['output_tokens']:,} out  "
+                    f"${cd['total_cost']:.4f}"
+                )
+
         print()
         return
 
@@ -332,6 +358,9 @@ def main() -> None:
     hist_p.add_argument("--provider", default="", help="Filter by provider")
     hist_p.add_argument(
         "--hours", type=float, default=0, help="Only last N hours (0 = all)"
+    )
+    hist_p.add_argument(
+        "--costs", action="store_true", help="Include cost estimation breakdown"
     )
 
     # modelmux version

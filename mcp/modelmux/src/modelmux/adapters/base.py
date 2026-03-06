@@ -19,6 +19,22 @@ QUEUE_READ_TIMEOUT = 0.5
 
 
 @dataclass
+class TokenUsage:
+    """Token usage statistics from a model call."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,
+        }
+
+
+@dataclass
 class AdapterResult:
     """Canonical result schema for all model adapters."""
 
@@ -30,6 +46,7 @@ class AdapterResult:
     session_id: str = ""
     duration_seconds: float = 0.0
     error: str | None = None
+    token_usage: TokenUsage | None = None
 
     def to_dict(self) -> dict:
         d = {
@@ -43,6 +60,8 @@ class AdapterResult:
         }
         if self.error:
             d["error"] = self.error
+        if self.token_usage:
+            d["token_usage"] = self.token_usage.to_dict()
         return d
 
 
@@ -157,6 +176,14 @@ class BaseAdapter:
         """
         raise NotImplementedError
 
+    def parse_token_usage(self, lines: list[str]) -> TokenUsage | None:
+        """Extract token usage from output lines.
+
+        Override in subclasses that can extract token data.
+        Returns None if token usage is unavailable.
+        """
+        return None
+
     async def run(
         self,
         prompt: str,
@@ -248,6 +275,7 @@ class BaseAdapter:
             )
 
         agent_text, new_session_id, error_text = self.parse_output(lines)
+        token_usage = self.parse_token_usage(lines)
 
         # Generate summary (first 200 chars of agent text)
         summary = agent_text[:200].replace("\n", " ") if agent_text else ""
@@ -263,4 +291,5 @@ class BaseAdapter:
             session_id=new_session_id or session_id,
             duration_seconds=duration,
             error=error_text if error_text else None,
+            token_usage=token_usage,
         )

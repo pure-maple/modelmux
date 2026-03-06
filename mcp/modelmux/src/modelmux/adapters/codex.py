@@ -16,7 +16,7 @@ import os
 import re
 import tempfile
 
-from modelmux.adapters.base import BaseAdapter
+from modelmux.adapters.base import BaseAdapter, TokenUsage
 
 
 def _needs_ascii_workaround(path: str) -> bool:
@@ -37,6 +37,29 @@ def _create_ascii_symlink(target: str) -> str:
     link_path = os.path.join(link_dir, "workdir")
     os.symlink(target, link_path)
     return link_path
+
+
+def _find_git_dir(workdir: str) -> str | None:
+    """Walk up from workdir to find the .git directory."""
+    current = os.path.realpath(workdir)
+    while True:
+        git_path = os.path.join(current, ".git")
+        if os.path.exists(git_path):
+            if os.path.isdir(git_path):
+                return git_path
+            # .git file (worktree) — read the gitdir pointer
+            try:
+                with open(git_path) as f:
+                    content = f.read().strip()
+                if content.startswith("gitdir:"):
+                    return content[len("gitdir:") :].strip()
+            except OSError:
+                pass
+            return None
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
 
 
 # Regex to filter out reconnection noise
@@ -135,6 +158,38 @@ class CodexAdapter(BaseAdapter):
         error_text = "\n".join(errors)
         return agent_text, thread_id, error_text
 
+    def parse_token_usage(self, lines: list[str]) -> TokenUsage | None:
+        """Extract token usage from Codex turn.completed events.
+
+        The turn.completed JSONL event contains a usage field with
+        input_tokens, output_tokens, and total_tokens.
+        """
+        for line in reversed(lines):
+            try:
+                data = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            if data.get("type") != "turn.completed":
+                continue
+
+            usage = data.get("usage")
+            if not usage or not isinstance(usage, dict):
+                continue
+
+            input_t = usage.get("input_tokens", 0)
+            output_t = usage.get("output_tokens", 0)
+            total_t = usage.get("total_tokens", 0)
+            if not total_t:
+                total_t = input_t + output_t
+            if input_t or output_t or total_t:
+                return TokenUsage(
+                    input_tokens=input_t,
+                    output_tokens=output_t,
+                    total_tokens=total_t,
+                )
+        return None
+
     async def run(
         self,
         prompt: str = "",
@@ -148,11 +203,16 @@ class CodexAdapter(BaseAdapter):
     ):
         """Execute with ASCII workdir workaround for Codex UTF-8 bug.
 
-        When workdir contains non-ASCII chars, we create an ASCII symlink
-        and set PWD env var so that Node.js process.cwd() (which prefers
-        PWD over the OS-resolved getcwd()) reports the symlink path.
-        Without PWD, the OS resolves the symlink back to the original
-        non-ASCII path, defeating the workaround.
+        When workdir contains non-ASCII chars, Codex CLI embeds the
+        workspace path in the x-codex-turn-metadata HTTP header, which
+        fails because HTTP headers require ASCII.
+
+        We create an ASCII symlink and set three env vars:
+        - PWD: Node.js process.cwd() prefers this over OS getcwd()
+        - GIT_WORK_TREE: prevents git from resolving the symlink
+          back to the real non-ASCII path via rev-parse --show-toplevel
+        - GIT_DIR: points git directly to the .git directory so it
+          doesn't walk up the directory tree through the symlink
         """
         ascii_link = ""
         actual_workdir = workdir
@@ -160,10 +220,13 @@ class CodexAdapter(BaseAdapter):
         if _needs_ascii_workaround(workdir):
             ascii_link = _create_ascii_symlink(workdir)
             actual_workdir = ascii_link
-            # Set PWD so Node.js process.cwd() uses the symlink path
-            # instead of the OS-resolved real path
             env_overrides = dict(env_overrides) if env_overrides else {}
             env_overrides["PWD"] = ascii_link
+            # Prevent git from resolving symlink to real non-ASCII path
+            git_dir = _find_git_dir(workdir)
+            if git_dir:
+                env_overrides["GIT_WORK_TREE"] = ascii_link
+                env_overrides["GIT_DIR"] = git_dir
 
         try:
             return await super().run(
