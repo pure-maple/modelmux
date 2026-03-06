@@ -1,5 +1,7 @@
 # modelmux
 
+<!-- mcp-name: io.github.pure-maple/modelmux -->
+
 Model multiplexer — unified MCP server for cross-platform multi-model AI collaboration.
 
 Route tasks to **Codex CLI**, **Gemini CLI**, and **Claude Code CLI** through a single MCP interface with smart routing and caller auto-detection.
