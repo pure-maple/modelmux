@@ -76,7 +76,7 @@ codex / gemini / claude / ollama / dashscope / 自定义插件
 - [x] Starlette REST API (status/history/stats/providers/costs/trends)
 - [x] 内嵌暗色主题 HTML 面板（5s 自动刷新）
 - [x] 历史趋势图表（Chart.js）
-- [ ] A2A 协作可视化（轮次、收敛过程）
+- [x] A2A 协作可视化（轮次、收敛过程）
 
 ### 生态集成
 - [x] Webhook 通知（Slack/Discord/通用 webhook）
