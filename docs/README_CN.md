@@ -305,6 +305,22 @@ mux_dispatch(provider="codex", task="...", failover=True)  # 默认开启
 - `failover=False`（手动禁用）
 - 超时（已经等待了足够久）
 
+## 实时状态监控
+
+通过 CLI 实时监控活跃的分发任务：
+
+```bash
+# 查看当前活跃的分发任务
+modelmux status
+
+# 实时刷新模式（每秒更新）
+modelmux status -w
+```
+
+分发期间状态数据写入 `~/.config/modelmux/status/`，外部工具（TUI、仪表盘）可读取该目录观察多模型调用进度。超过 10 分钟的过期条目会自动清理。
+
+`mux_check()` 的输出中也会包含 `_active_dispatches` 字段（有活跃分发时）。
+
 ## 输出格式
 
 所有结果遵循统一的标准化格式：
@@ -351,15 +367,19 @@ modelmux/
 │       ├── detect.py               # 调用方平台检测与自动排除
 │       ├── audit.py                # JSONL 审计日志与统计
 │       ├── policy.py               # 策略引擎（速率限制、提供方/沙箱规则）
-│       ├── cli.py                  # 入口
+│       ├── status.py               # 实时分发状态追踪
+│       ├── cli.py                  # CLI：server, init, check, status, version
 │       └── adapters/               # 模型适配器
 │           ├── base.py             # 线程化子进程管理 + 标准化输出
 │           ├── codex.py            # JSONL 解析 + thread_id 会话
 │           ├── gemini.py           # stream-json 解析 + session_id
-│           └── claude.py           # 纯文本解析
+│           ├── claude.py           # 纯文本解析
+│           └── ollama.py           # 本地模型推理
 ├── mcp/modelmux/tests/
 │   ├── test_detect.py              # 平台检测单元测试（15 项）
 │   ├── test_audit_policy.py        # 审计日志与策略引擎测试（11 项）
+│   ├── test_failover.py            # 容错与进度通知测试（7 项）
+│   ├── test_ollama.py              # Ollama 适配器测试（8 项）
 │   └── test_e2e.py                 # 端到端测试
 ├── scripts/                        # 降级方案：基于 tmux 的 shell 脚本
 │   ├── session.sh                  # tmux 会话管理

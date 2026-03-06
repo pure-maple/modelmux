@@ -179,6 +179,22 @@ mux_dispatch(provider="codex", task="...", failover=True)  # default
 
 Failover is skipped for session-based requests (`session_id` set) since sessions are provider-specific. Disable with `failover=False`.
 
+## Real-time Status Monitoring
+
+Monitor active dispatches in real-time via CLI:
+
+```bash
+# One-shot view of active dispatches
+modelmux status
+
+# Live watch mode (updates every second)
+modelmux status -w
+```
+
+Status data is written to `~/.config/modelmux/status/` during each dispatch, enabling external tools (TUI, dashboards) to observe multi-model calls in progress. Stale entries are auto-cleaned after 10 minutes.
+
+`mux_check()` also includes `_active_dispatches` in its output when dispatches are running.
+
 ## Output Schema
 
 All results follow the canonical schema:
@@ -243,12 +259,14 @@ modelmux/
 │       ├── detect.py           # Caller platform detection & auto-exclusion
 │       ├── audit.py            # JSONL audit logging & stats
 │       ├── policy.py           # Policy engine (rate limits, provider/sandbox rules)
-│       ├── cli.py              # Entry point
+│       ├── status.py           # Real-time dispatch status tracking
+│       ├── cli.py              # CLI: server, init, check, status, version
 │       └── adapters/
 │           ├── base.py         # Threaded subprocess, canonical schema
 │           ├── codex.py        # JSONL parsing, thread_id sessions
 │           ├── gemini.py       # stream-json parsing, session_id
-│           └── claude.py       # Plain text parsing
+│           ├── claude.py       # Plain text parsing
+│           └── ollama.py       # Local model inference
 ├── scripts/                    # Fallback: tmux-based shell scripts
 │   ├── session.sh
 │   ├── dispatch.sh
