@@ -201,6 +201,45 @@ def _cmd_history(args: argparse.Namespace) -> None:
     print()
 
 
+def _cmd_benchmark(args: argparse.Namespace) -> None:
+    """Run the benchmark suite."""
+    from modelmux.benchmark import (
+        BENCHMARK_TASKS,
+        format_report,
+        run_benchmark,
+        save_report,
+    )
+
+    providers = getattr(args, "providers", None)
+    task_names = getattr(args, "tasks", None)
+    timeout = getattr(args, "timeout", 120)
+    output = getattr(args, "output", "")
+
+    if getattr(args, "list_tasks", False):
+        print("Available benchmark tasks:")
+        for name, info in BENCHMARK_TASKS.items():
+            print(f"  {name:20s} [{info['category']}] {info['description']}")
+        return
+
+    print("modelmux Benchmark")
+    print(f"  Providers: {', '.join(providers) if providers else 'auto-detect'}")
+    print(f"  Tasks: {', '.join(task_names) if task_names else 'all'}")
+    print(f"  Timeout: {timeout}s")
+    print()
+
+    report = run_benchmark(
+        providers=providers,
+        task_names=task_names,
+        timeout=timeout,
+    )
+
+    print(format_report(report))
+
+    if output:
+        save_report(report, output)
+        print(f"\nResults saved to {output}")
+
+
 def _cmd_dashboard(args: argparse.Namespace) -> None:
     """Start the web dashboard."""
     from modelmux.dashboard import run_dashboard
@@ -370,6 +409,26 @@ def main() -> None:
         "--costs", action="store_true", help="Include cost estimation breakdown"
     )
 
+    # modelmux benchmark
+    bench_p = subparsers.add_parser(
+        "benchmark", help="Run provider benchmark suite"
+    )
+    bench_p.add_argument(
+        "--providers", nargs="+", help="Providers to test (default: auto-detect)"
+    )
+    bench_p.add_argument(
+        "--tasks", nargs="+", help="Task names to run (default: all)"
+    )
+    bench_p.add_argument(
+        "--timeout", type=int, default=120, help="Per-task timeout (default: 120s)"
+    )
+    bench_p.add_argument(
+        "--output", "-o", default="", help="Save results to JSON file"
+    )
+    bench_p.add_argument(
+        "--list-tasks", action="store_true", help="List available benchmark tasks"
+    )
+
     # modelmux dashboard
     dash_p = subparsers.add_parser(
         "dashboard", help="Start the web monitoring dashboard"
@@ -400,6 +459,8 @@ def main() -> None:
         _cmd_status(args)
     elif args.command == "history":
         _cmd_history(args)
+    elif args.command == "benchmark":
+        _cmd_benchmark(args)
     elif args.command == "dashboard":
         _cmd_dashboard(args)
     elif args.command == "version":
