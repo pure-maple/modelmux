@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.26.1 (2026-03-07)
+
+### Quality & Observability
+- **Silent exception cleanup**: Replaced bare `except: pass` with `logger.warning`/`logger.debug` across 7 core modules (server.py, history.py, config.py, cli.py, notifications.py, audit.py, dashboard.py)
+- **mux_check diagnose parity**: Diagnose mode now checks `routing_rules` before `smart_route()`, matching actual `_auto_route()` logic
+- **Dashboard feedback panel**: `/api/feedback` endpoint + star ratings UI card with auto-refresh
+- **Import sorting**: Fixed I001 ruff violations in server.py, dashscope.py, http_server.py
+
+### Documentation & Process
+- **Release notes for v0.25.1 and v0.26.0**: Added missing `docs/releases/` files and updated GitHub releases
+- **Release notes workflow**: Dev workflow now requires `docs/releases/vX.Y.Z.md` before tagging; added `pre-release-check.sh` validation script
+- **ROADMAP update**: Reflects v0.26.0+ state (routing v4, feedback, security hardening)
+
+### Stats
+- 417 tests passing (4 new dashboard feedback tests)
+
 ## v0.26.0 (2026-03-07)
 
 ### User Feedback Loop (routing v4)

@@ -336,12 +336,16 @@ class A2AServer:
         # Enforce request body size limit (1 MB)
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > 1_048_576:
-            return _jsonrpc_error(None, INVALID_REQUEST, "Request body too large (max 1MB)")
+            return _jsonrpc_error(
+                None, INVALID_REQUEST, "Request body too large (max 1MB)",
+            )
 
         try:
             raw_body = await request.body()
             if len(raw_body) > 1_048_576:
-                return _jsonrpc_error(None, INVALID_REQUEST, "Request body too large (max 1MB)")
+                return _jsonrpc_error(
+                    None, INVALID_REQUEST, "Request body too large (max 1MB)",
+                )
             body = json.loads(raw_body)
         except Exception:
             return _jsonrpc_error(None, PARSE_ERROR, "Parse error")
@@ -395,10 +399,17 @@ class A2AServer:
             return None
         policy = load_policy()
         for role, provider_spec in provider_map.items():
-            provider = provider_spec.split("/", 1)[0] if "/" in provider_spec else provider_spec
+            provider = (
+                provider_spec.split("/", 1)[0]
+                if "/" in provider_spec
+                else provider_spec
+            )
             result = check_policy(policy, provider, sandbox=self.sandbox)
             if not result.allowed:
-                return f"Policy denied provider '{provider}' (role={role}): {result.reason}"
+                return (
+                    f"Policy denied provider '{provider}' "
+                    f"(role={role}): {result.reason}"
+                )
         return None
 
     async def _handle_tasks_send(

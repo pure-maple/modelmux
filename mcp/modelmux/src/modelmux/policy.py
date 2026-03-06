@@ -61,7 +61,10 @@ def load_policy() -> Policy:
         data = json.loads(path.read_text(encoding="utf-8"))
         return _parse_policy(data)
     except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to parse policy file %s: %s — using default (permissive) policy", path, exc)
+        logger.warning(
+            "Failed to parse policy file %s: %s — using permissive default",
+            path, exc,
+        )
         return Policy()
 
 

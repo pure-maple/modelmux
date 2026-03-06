@@ -44,15 +44,15 @@ from modelmux.log import setup_logging
 from modelmux.policy import check_policy, load_policy
 from modelmux.routing import smart_route
 from modelmux.status import DispatchStatus, list_active, remove_status, write_status
-
-setup_logging()
-logger = logging.getLogger(__name__)
 from modelmux.workflow import (
     BUILTIN_WORKFLOWS,
     Workflow,
     parse_workflows,
     render_task,
 )
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
     "modelmux",
@@ -125,7 +125,10 @@ def _ensure_custom_providers_loaded() -> None:
                 raw = _load_file(cfg_file)
                 load_custom_providers(raw)
             except Exception:
-                logger.warning("Failed to load custom providers from %s", cfg_file, exc_info=True)
+                logger.warning(
+                    "Failed to load custom providers from %s",
+                    cfg_file, exc_info=True,
+                )
 
 
 def _detect_and_build_exclusions(
@@ -707,7 +710,10 @@ async def mux_broadcast(
         )
         if not policy_result.allowed:
             return json.dumps(
-                {"status": "blocked", "error": f"Policy denied provider '{tp}': {policy_result.reason}"},
+                {
+                    "status": "blocked",
+                    "error": f"Policy denied provider '{tp}': {policy_result.reason}",
+                },
                 indent=2,
             )
 
@@ -910,7 +916,8 @@ async def mux_feedback(
         return json.dumps(
             {
                 "status": "error",
-                "error": "Could not determine provider. Please specify provider explicitly.",
+                "error": "Could not determine provider. "
+                "Please specify provider explicitly.",
             },
             indent=2,
         )
@@ -981,7 +988,10 @@ async def mux_workflow(
                 raw = _load_file(cfg_file)
                 user_workflows.update(parse_workflows(raw))
             except Exception:
-                logger.warning("Failed to load workflows from %s", cfg_file, exc_info=True)
+                logger.warning(
+                    "Failed to load workflows from %s",
+                    cfg_file, exc_info=True,
+                )
 
     all_workflows = {**BUILTIN_WORKFLOWS, **user_workflows}
 
@@ -1010,7 +1020,11 @@ async def mux_workflow(
     calls_hour = count_recent(1.0)
     calls_day = count_recent(24.0)
     for step in wf.steps:
-        step_provider = step.provider.split("/", 1)[0] if "/" in step.provider else step.provider
+        step_provider = (
+            step.provider.split("/", 1)[0]
+            if "/" in step.provider
+            else step.provider
+        )
         policy_result = check_policy(
             policy,
             provider=step_provider,
@@ -1363,7 +1377,10 @@ async def mux_collaborate(
         )
         if not policy_result.allowed:
             return json.dumps(
-                {"status": "blocked", "error": f"Policy denied provider '{prov}': {policy_result.reason}"},
+                {
+                    "status": "blocked",
+                    "error": f"Policy denied provider '{prov}': {policy_result.reason}",
+                },
                 indent=2,
             )
 

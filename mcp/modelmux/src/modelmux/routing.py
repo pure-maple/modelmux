@@ -283,7 +283,10 @@ def benchmark_scores(
             continue
 
         if prov not in provider_data:
-            provider_data[prov] = {"total": 0, "success": 0, "kw_sum": 0.0, "kw_count": 0}
+            provider_data[prov] = {
+                "total": 0, "success": 0,
+                "kw_sum": 0.0, "kw_count": 0,
+            }
 
         pd = provider_data[prov]
         pd["total"] += 1
@@ -381,14 +384,18 @@ def smart_route(
             weight_bench = 0.15 if has_bench else 0.0
             weight_fb = 0.15 if has_feedback else 0.0
             # Redistribute missing weight to keyword
-            weight_kw += (0.15 if not has_bench else 0.0) + (0.15 if not has_feedback else 0.0)
+            miss = (0.15 if not has_bench else 0.0)
+            miss += (0.15 if not has_feedback else 0.0)
+            weight_kw += miss
         else:
             # Minimal data — keyword-heavy
             weight_kw = 0.60
             weight_hist = 0.0
             weight_bench = 0.20 if has_bench else 0.0
             weight_fb = 0.20 if has_feedback else 0.0
-            weight_kw += (0.20 if not has_bench else 0.0) + (0.20 if not has_feedback else 0.0)
+            miss = (0.20 if not has_bench else 0.0)
+            miss += (0.20 if not has_feedback else 0.0)
+            weight_kw += miss
 
         hs.composite = (
             hs.keyword_score * weight_kw

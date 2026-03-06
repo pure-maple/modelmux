@@ -286,7 +286,10 @@ def load_config(workdir: str = ".") -> MuxConfig:
             project_data = _load_file(project_file)
             config = _merge_configs(config, _parse_config(project_data))
         except Exception:
-            logger.warning("Failed to parse project config %s", project_file, exc_info=True)
+            logger.warning(
+                "Failed to parse project config %s",
+                project_file, exc_info=True,
+            )
 
     return config
 

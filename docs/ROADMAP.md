@@ -1,16 +1,17 @@
 # modelmux 功能规划
 
-## 当前状态 (v0.24.0+)
+## 当前状态 (v0.26.0+)
 
 ### MCP 工具
 | 工具 | 功能 |
 |------|------|
-| mux_dispatch | 单模型分发（智能路由 v2、failover、会话连续性、自动任务拆解） |
+| mux_dispatch | 单模型分发（智能路由 v4、failover、会话连续性、自动任务拆解） |
 | mux_broadcast | 多模型并行分发（共识/对比、Provider/Model 语法） |
 | mux_collaborate | A2A 迭代多 agent 协作（review/consensus/debate、DashScope provider/model 支持） |
 | mux_workflow | 多步流水线编排 |
+| mux_feedback | 用户反馈评分（1-5 分，驱动路由优化） |
 | mux_history | 历史查询与分析（含成本统计） |
-| mux_check | 可用性检查与状态概览 |
+| mux_check | 可用性检查与状态概览（含路由 v4 诊断） |
 
 ### A2A HTTP Server
 | 端点 | 功能 |
@@ -28,7 +29,7 @@
 codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 
 ### 基础设施
-审计日志 / 策略引擎 / Profile 系统 / 实时状态追踪 / TUI 配置面板 / 流式输出 / 智能路由 v2 / 成本追踪 / Web Dashboard（趋势图表 + 协作可视化）/ Webhook 通知 / 导出报告 / 基准测试 / A2A 联邦 POC
+审计日志 / 策略引擎 / Profile 系统 / 实时状态追踪 / TUI 配置面板 / 流式输出 / 智能路由 v4（关键词+历史+benchmark+反馈）/ 成本追踪 / Web Dashboard（趋势图表 + 协作可视化 + 反馈面板）/ Webhook 通知 / 导出报告 / 基准测试 / A2A 联邦 POC / 结构化日志
 
 ---
 
@@ -49,7 +50,7 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 - [x] 结果对比/Diff 分析
 - [x] 自定义 Provider 插件
 - [x] 流式输出 (on_progress 回调)
-- [x] 智能路由 v2 (关键词 + 历史评分)
+- [x] 智能路由 v2 → v3 → v4 (关键词 + 历史 + benchmark + 用户反馈)
 - [x] A2A 数据模型 + 任务状态机
 - [x] A2A 协作引擎 (review/consensus/debate)
 - [x] A2A HTTP Server (Agent Card + JSON-RPC 2.0 + SSE)
@@ -69,6 +70,11 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 - [x] 导出/报告功能 (`modelmux export`)
 - [x] mux_collaborate DashScope provider/model 支持
 - [x] A2A 联邦概念验证 (10 个测试覆盖完整链路)
+- [x] 用户反馈工具 (mux_feedback) + 路由 v4 四信号融合
+- [x] 安全加固 Phase 1+2 (v0.25.0 + v0.25.1): 3-agent 并行安全审计全量修复
+- [x] 结构化日志 (MODELMUX_LOG_LEVEL/FORMAT)
+- [x] Dashboard 反馈面板 + mux_check 诊断模式
+- [x] 核心模块 logging 清理（bare except→logger）
 
 ---
 
@@ -78,11 +84,12 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 - [x] 全量代码审查：3-agent 并行安全审计（SSRF、策略绕过、sandbox 提权、flag 注入、XSS、路径遍历）
 - [x] 错误恢复增强：subprocess zombie 防护（kill 回退）、Dashboard 输入验证
 - [x] 日志系统改进：modelmux.log 模块 + MODELMUX_LOG_LEVEL/FORMAT 环境变量
+- [x] 核心模块 silent exception 清理
 
-### 智能路由 v3
+### 智能路由 v3 → v4
 - [x] 基于 benchmark 结果的自动路由权重调整
 - [x] 任务类型分类器（analysis/generation/reasoning/language）
-- [ ] 用户反馈闭环（用户评价→路由权重更新）
+- [x] 用户反馈闭环（mux_feedback 工具 + routing v4 四信号融合）
 
 ### 生态集成
 - [ ] VS Code 扩展（MCP 客户端 + Dashboard WebView）
@@ -105,4 +112,4 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 
 ---
 
-*最后更新: 2026-03-07 (v0.25.0, 361 tests)*
+*最后更新: 2026-03-07 (v0.26.0+, 417 tests)*

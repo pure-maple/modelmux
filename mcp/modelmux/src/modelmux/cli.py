@@ -304,7 +304,10 @@ def _cmd_a2a_server(args: argparse.Namespace) -> None:
                 raw = _load_file(cfg_file)
                 load_custom_providers(raw)
             except Exception:
-                logger.warning("Failed to load custom providers from %s", cfg_file, exc_info=True)
+                logger.warning(
+                    "Failed to load custom providers from %s",
+                    cfg_file, exc_info=True,
+                )
 
     # Adapter resolver
     adapter_cache: dict[str, BaseAdapter] = {}
@@ -381,7 +384,8 @@ def main() -> None:
     # modelmux a2a-server
     a2a_p = subparsers.add_parser("a2a-server", help="Start the A2A HTTP server")
     a2a_p.add_argument(
-        "--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1, use 0.0.0.0 for network access)"
+        "--host", default="127.0.0.1",
+        help="Bind address (default: 127.0.0.1, use 0.0.0.0 for network access)",
     )
     a2a_p.add_argument("--port", type=int, default=41520, help="Port (default: 41520)")
     a2a_p.add_argument("--workdir", default=".", help="Working directory for agents")

@@ -160,7 +160,10 @@ def sanitize_extra_args(extra_args: dict | None) -> dict | None:
         if isinstance(v, str) and v.startswith("-"):
             continue  # reject flag-like values
         if isinstance(v, list):
-            v = [item for item in v if not (isinstance(item, str) and item.startswith("-"))]
+            v = [
+                item for item in v
+                if not (isinstance(item, str) and item.startswith("-"))
+            ]
         safe[k] = v
     return safe if safe else None
 
