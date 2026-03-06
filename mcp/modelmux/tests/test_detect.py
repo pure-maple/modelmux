@@ -1,6 +1,6 @@
 """Unit tests for caller platform detection.
 
-Run with: cd mcp/collab-hub && .venv/bin/python tests/test_detect.py
+Run with: cd mcp/modelmux && .venv/bin/python tests/test_detect.py
 """
 
 import sys
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, "src")
 
-from collab_hub.detect import (
+from modelmux.detect import (
     CallerInfo,
     detect_caller,
     detect_caller_from_env,
@@ -126,7 +126,7 @@ def test_exclusion_unknown_caller():
 
 def test_routing_exclusion_scenario():
     """Full scenario: Claude Code calling, task routes to claude → redirect."""
-    from collab_hub.server import _builtin_auto_route
+    from modelmux.server import _builtin_auto_route
 
     task = "Review this code for security vulnerabilities"
     route = _builtin_auto_route(task)
@@ -149,7 +149,7 @@ def test_routing_exclusion_scenario():
 
 def test_routing_no_exclusion_needed():
     """Task routes to different provider than caller → no change."""
-    from collab_hub.server import _builtin_auto_route
+    from modelmux.server import _builtin_auto_route
 
     task = "Implement a binary search algorithm"
     route = _builtin_auto_route(task)
@@ -171,9 +171,9 @@ def test_routing_no_exclusion_needed():
 
 def test_combined_exclusion():
     """disabled_providers + caller exclusion combined."""
-    from collab_hub.config import CollabConfig
+    from modelmux.config import MuxConfig
 
-    config = CollabConfig(disabled_providers=["gemini"])
+    config = MuxConfig(disabled_providers=["gemini"])
     caller = CallerInfo(provider="claude", platform="cli")
 
     excluded = list(config.disabled_providers)

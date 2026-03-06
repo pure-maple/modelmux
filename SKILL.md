@@ -1,15 +1,15 @@
 ---
-name: multi-model-collab
+name: modelmux
 description: >
-  Cross-platform multi-model AI collaboration. Dispatches tasks to Codex CLI,
-  Gemini CLI, or Claude Code CLI and returns structured results. Use this skill
-  when the user wants multi-model collaboration, cross-model code review, a
-  second opinion from another AI, comparing outputs from different models,
-  mentions "ask Codex/Gemini", or when a task would benefit from leveraging
-  multiple AI models' complementary strengths.
+  Model multiplexer for cross-platform multi-model AI collaboration. Dispatches
+  tasks to Codex CLI, Gemini CLI, or Claude Code CLI and returns structured
+  results. Use this skill when the user wants multi-model collaboration,
+  cross-model code review, a second opinion from another AI, comparing outputs
+  from different models, mentions "ask Codex/Gemini", or when a task would
+  benefit from leveraging multiple AI models' complementary strengths.
 ---
 
-# Multi-Model AI Collaboration
+# modelmux — Multi-Model AI Collaboration
 
 Orchestrate tasks across Codex, Gemini, and Claude, combining each model's
 strengths for better results.

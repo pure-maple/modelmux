@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from collab_hub.adapters.base import BaseAdapter
+from modelmux.adapters.base import BaseAdapter
 
 # Known Gemini CLI deprecation warnings to filter out
 DEPRECATION_MARKERS = [

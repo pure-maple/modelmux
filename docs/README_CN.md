@@ -1,4 +1,4 @@
-# Multi-Model Collab
+# modelmux
 
 跨平台多模型 AI 协作技能。通过统一的 MCP 接口，将任务分发给 **Codex CLI**、**Gemini CLI** 和 **Claude Code CLI**。
 
@@ -21,7 +21,7 @@
 ```
 任意 MCP 客户端（Claude Code / Codex CLI / Gemini CLI / IDE）
     │
-    └── collab-hub（统一 MCP 服务器）
+    └── modelmux（统一 MCP 服务器）
         ├── collab_dispatch(provider, task, ...) → 标准化结果
         └── collab_check() → 可用性检查
             │
@@ -49,8 +49,8 @@
 ### 安装
 
 ```bash
-git clone https://github.com/pure-maple/multi-model-collab.git
-cd multi-model-collab
+git clone https://github.com/pure-maple/modelmux.git
+cd modelmux
 
 # 为 Claude Code 安装（一条命令）
 ./install.sh --claude
@@ -66,15 +66,15 @@ cd multi-model-collab
 
 ```bash
 # Claude Code
-claude mcp add collab-hub -s user -- uvx collab-hub
+claude mcp add modelmux -s user -- uvx modelmux
 
 # Codex CLI（添加到 ~/.codex/config.toml）
-[mcp_servers.collab-hub]
+[mcp_servers.modelmux]
 command = "uvx"
-args = ["collab-hub"]
+args = ["modelmux"]
 
 # Gemini CLI（添加到 ~/.gemini/settings.json）
-{"mcpServers": {"collab-hub": {"command": "uvx", "args": ["collab-hub"]}}}
+{"mcpServers": {"modelmux": {"command": "uvx", "args": ["modelmux"]}}}
 ```
 
 ## 使用方法
@@ -135,7 +135,7 @@ collab_dispatch(provider="auto", task="审查这段代码的安全性")
 
 ### 用户偏好配置
 
-创建 `.collab-hub/profiles.toml`（项目级）或 `~/.config/collab-hub/profiles.toml`（用户级）：
+创建 `.modelmux/profiles.toml`（项目级）或 `~/.config/modelmux/profiles.toml`（用户级）：
 
 ```toml
 # 自定义路由规则
@@ -240,25 +240,25 @@ review_b = collab_dispatch(provider="gemini", task=f"审查:\n{code}")
 
 ```bash
 # Claude Code
-mkdir -p ~/.claude/skills/multi-model-collab
-cp SKILL.md ~/.claude/skills/multi-model-collab/SKILL.md
+mkdir -p ~/.claude/skills/modelmux
+cp SKILL.md ~/.claude/skills/modelmux/SKILL.md
 
 # Codex CLI
-mkdir -p .agents/skills/multi-model-collab
-cp SKILL.md .agents/skills/multi-model-collab/SKILL.md
+mkdir -p .agents/skills/modelmux
+cp SKILL.md .agents/skills/modelmux/SKILL.md
 
 # Gemini CLI
-mkdir -p .gemini/skills/multi-model-collab
-cp SKILL.md .gemini/skills/multi-model-collab/SKILL.md
+mkdir -p .gemini/skills/modelmux
+cp SKILL.md .gemini/skills/modelmux/SKILL.md
 ```
 
 ## 审计日志与策略引擎
 
-每次 `collab_dispatch` 调用都会记录到 `~/.config/collab-hub/audit.jsonl`（JSONL 格式），用于调试、成本追踪和速率限制。
+每次 `collab_dispatch` 调用都会记录到 `~/.config/modelmux/audit.jsonl`（JSONL 格式），用于调试、成本追踪和速率限制。
 
 ### 策略引擎
 
-创建 `~/.config/collab-hub/policy.json` 来配置安全约束：
+创建 `~/.config/modelmux/policy.json` 来配置安全约束：
 
 ```json
 {
@@ -316,15 +316,15 @@ cp SKILL.md .gemini/skills/multi-model-collab/SKILL.md
 ## 项目结构
 
 ```
-multi-model-collab/
+modelmux/
 ├── README.md                       # 英文文档
 ├── docs/README_CN.md               # 中文文档（本文件）
 ├── SKILL.md                        # Agent Skill 定义（MCP 优先 + 三级降级）
 ├── install.sh                      # 一键安装脚本
-├── mcp/collab-hub/                 # 统一 MCP 服务器
+├── mcp/modelmux/                 # 统一 MCP 服务器
 │   ├── pyproject.toml              # Python 包配置
 │   ├── README.md
-│   └── src/collab_hub/
+│   └── src/modelmux/
 │       ├── server.py               # MCP 工具：collab_dispatch, collab_check
 │       ├── config.py               # 用户偏好、路由规则、配置加载
 │       ├── detect.py               # 调用方平台检测与自动排除
@@ -336,7 +336,7 @@ multi-model-collab/
 │           ├── codex.py            # JSONL 解析 + thread_id 会话
 │           ├── gemini.py           # stream-json 解析 + session_id
 │           └── claude.py           # 纯文本解析
-├── mcp/collab-hub/tests/
+├── mcp/modelmux/tests/
 │   ├── test_detect.py              # 平台检测单元测试（15 项）
 │   ├── test_audit_policy.py        # 审计日志与策略引擎测试（11 项）
 │   └── test_e2e.py                 # 端到端测试

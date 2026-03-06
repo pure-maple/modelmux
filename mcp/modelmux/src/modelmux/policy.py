@@ -1,4 +1,4 @@
-"""Lightweight policy engine for collab-hub.
+"""Lightweight policy engine for modelmux.
 
 Enforces security and usage constraints before dispatch:
   - Provider allowlist/blocklist
@@ -6,7 +6,7 @@ Enforces security and usage constraints before dispatch:
   - Timeout caps
   - Rate limiting (calls per hour/day)
 
-Policy is loaded from ~/.config/collab-hub/policy.json.
+Policy is loaded from ~/.config/modelmux/policy.json.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from typing import Any
 
 
 def _policy_file() -> Path:
-    return Path.home() / ".config" / "collab-hub" / "policy.json"
+    return Path.home() / ".config" / "modelmux" / "policy.json"
 
 
 @dataclass

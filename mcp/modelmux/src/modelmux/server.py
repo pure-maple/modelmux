@@ -1,10 +1,8 @@
-"""Unified MCP server for multi-model AI collaboration.
+"""modelmux — model multiplexer for multi-model AI collaboration.
 
-Exposes tools that route tasks to Codex CLI, Gemini CLI, or Claude Code CLI,
+Routes tasks to Codex CLI, Gemini CLI, or Claude Code CLI,
 returning results in a canonical schema. Supports user-defined profiles for
 third-party model configuration and custom routing rules.
-
-Architecture: One hub, multiple internal adapters.
 """
 
 from __future__ import annotations
@@ -17,20 +15,20 @@ from typing import Literal
 
 from mcp.server.fastmcp import Context, FastMCP
 
-from collab_hub.adapters import ADAPTERS, BaseAdapter
-from collab_hub.audit import AuditEntry, count_recent, get_audit_stats, log_dispatch
-from collab_hub.config import (
-    CollabConfig,
+from modelmux.adapters import ADAPTERS, BaseAdapter
+from modelmux.audit import AuditEntry, count_recent, get_audit_stats, log_dispatch
+from modelmux.config import (
+    MuxConfig,
     load_config,
     route_by_rules,
 )
-from collab_hub.detect import CallerInfo, detect_caller, get_excluded_providers
-from collab_hub.policy import check_policy, load_policy
+from modelmux.detect import CallerInfo, detect_caller, get_excluded_providers
+from modelmux.policy import check_policy, load_policy
 
 mcp = FastMCP(
-    "collab-hub",
+    "modelmux",
     instructions=(
-        "Multi-model AI collaboration hub. Use collab_dispatch to send "
+        "modelmux — model multiplexer. Use collab_dispatch to send "
         "tasks to different AI models (codex, gemini, claude) and receive "
         "structured results. Use provider='auto' for smart routing. "
         "Supports profiles for third-party model configuration and "
@@ -86,7 +84,7 @@ def _builtin_auto_route(task: str) -> str:
     return best
 
 
-def _auto_route(task: str, config: CollabConfig) -> str:
+def _auto_route(task: str, config: MuxConfig) -> str:
     """Route using custom rules first, then built-in patterns as fallback."""
     if config.routing_rules:
         result = route_by_rules(task, config.routing_rules, config.default_provider)
@@ -109,7 +107,7 @@ def _get_adapter(provider: str) -> BaseAdapter:
 
 def _detect_and_build_exclusions(
     ctx: Context,
-    config: CollabConfig,
+    config: MuxConfig,
 ) -> tuple[CallerInfo, list[str]]:
     """Detect caller and build the combined exclusion list."""
     session = ctx.session if ctx._request_context else None

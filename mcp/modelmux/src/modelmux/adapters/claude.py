@@ -6,7 +6,7 @@ Claude outputs plain text, no structured JSON events.
 
 from __future__ import annotations
 
-from collab_hub.adapters.base import BaseAdapter
+from modelmux.adapters.base import BaseAdapter
 
 
 class ClaudeAdapter(BaseAdapter):

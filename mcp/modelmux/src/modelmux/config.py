@@ -1,8 +1,8 @@
 """User preference and routing configuration.
 
 Loads profiles and routing rules from:
-  1. Project-level: .collab-hub/profiles.{json,toml,yaml}  (highest priority)
-  2. User-level:    ~/.config/collab-hub/profiles.{json,toml,yaml}
+  1. Project-level: .modelmux/profiles.{json,toml,yaml}  (highest priority)
+  2. User-level:    ~/.config/modelmux/profiles.{json,toml,yaml}
   3. Built-in defaults                                      (lowest priority)
 
 Config format is auto-detected by file extension.
@@ -107,7 +107,7 @@ class RoutingRule:
 
 
 @dataclass
-class CollabConfig:
+class MuxConfig:
     """Complete configuration state."""
 
     active_profile: str = "default"
@@ -190,9 +190,9 @@ def _parse_routing_rule(data: dict[str, Any]) -> RoutingRule:
     )
 
 
-def _parse_config(data: dict[str, Any]) -> CollabConfig:
-    """Parse raw config dict into structured CollabConfig."""
-    config = CollabConfig()
+def _parse_config(data: dict[str, Any]) -> MuxConfig:
+    """Parse raw config dict into structured MuxConfig."""
+    config = MuxConfig()
     config.active_profile = data.get("active_profile", "default")
     config.default_provider = data.get("routing", {}).get("default_provider", "codex")
     config.disabled_providers = data.get("disabled_providers", [])
@@ -210,9 +210,9 @@ def _parse_config(data: dict[str, Any]) -> CollabConfig:
     return config
 
 
-def _merge_configs(base: CollabConfig, override: CollabConfig) -> CollabConfig:
+def _merge_configs(base: MuxConfig, override: MuxConfig) -> MuxConfig:
     """Merge override config on top of base (override wins)."""
-    merged = CollabConfig()
+    merged = MuxConfig()
 
     # Override wins for scalar fields
     merged.active_profile = override.active_profile or base.active_profile
@@ -242,16 +242,16 @@ def _merge_configs(base: CollabConfig, override: CollabConfig) -> CollabConfig:
     return merged
 
 
-def load_config(workdir: str = ".") -> CollabConfig:
+def load_config(workdir: str = ".") -> MuxConfig:
     """Load configuration with priority: project > user > defaults.
 
     Args:
         workdir: Current working directory (for project-level config).
     """
-    config = CollabConfig()
+    config = MuxConfig()
 
     # User-level config
-    user_dir = Path.home() / ".config" / "collab-hub"
+    user_dir = Path.home() / ".config" / "modelmux"
     user_file = _find_config_file(user_dir)
     if user_file:
         try:
@@ -261,7 +261,7 @@ def load_config(workdir: str = ".") -> CollabConfig:
             pass  # Silently skip invalid user config
 
     # Project-level config
-    project_dir = Path(workdir).resolve() / ".collab-hub"
+    project_dir = Path(workdir).resolve() / ".modelmux"
     project_file = _find_config_file(project_dir)
     if project_file:
         try:
@@ -273,7 +273,7 @@ def load_config(workdir: str = ".") -> CollabConfig:
     return config
 
 
-def get_active_profile(config: CollabConfig) -> Profile | None:
+def get_active_profile(config: MuxConfig) -> Profile | None:
     """Get the currently active profile, or None if default."""
     return config.profiles.get(config.active_profile)
 

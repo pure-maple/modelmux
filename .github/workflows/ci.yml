@@ -15,7 +15,7 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
     defaults:
       run:
-        working-directory: mcp/collab-hub
+        working-directory: mcp/modelmux
 
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +23,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: "mcp/collab-hub/pyproject.toml"
+          cache-dependency-glob: "mcp/modelmux/pyproject.toml"
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -44,9 +44,9 @@ jobs:
       - name: Import verification
         run: |
           uv run python -c "
-          from collab_hub.server import mcp, collab_dispatch, collab_check
-          from collab_hub.config import CollabConfig, load_config
-          from collab_hub.detect import detect_caller, CallerInfo
+          from modelmux.server import mcp, collab_dispatch, collab_check
+          from modelmux.config import MuxConfig, load_config
+          from modelmux.detect import detect_caller, CallerInfo
           print('All imports OK')
           "
 

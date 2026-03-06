@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: mcp/collab-hub
+        working-directory: mcp/modelmux
 
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +18,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: "mcp/collab-hub/pyproject.toml"
+          cache-dependency-glob: "mcp/modelmux/pyproject.toml"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -34,8 +34,8 @@ jobs:
       - name: Import verification
         run: |
           uv run python -c "
-          from collab_hub.server import mcp
-          print(f'collab-hub {mcp.name} ready')
+          from modelmux.server import mcp
+          print(f'modelmux {mcp.name} ready')
           "
 
   publish:
@@ -45,10 +45,10 @@ jobs:
       id-token: write  # Required for PyPI Trusted Publisher
     environment:
       name: pypi
-      url: https://pypi.org/project/collab-hub/
+      url: https://pypi.org/project/modelmux/
     defaults:
       run:
-        working-directory: mcp/collab-hub
+        working-directory: mcp/modelmux
 
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: "mcp/collab-hub/pyproject.toml"
+          cache-dependency-glob: "mcp/modelmux/pyproject.toml"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -73,4 +73,4 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: mcp/collab-hub/dist/
+          packages-dir: mcp/modelmux/dist/

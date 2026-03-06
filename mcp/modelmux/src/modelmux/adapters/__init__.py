@@ -1,9 +1,9 @@
-"""Model CLI adapters for collab-hub."""
+"""Model CLI adapters for modelmux."""
 
-from collab_hub.adapters.base import AdapterResult, BaseAdapter
-from collab_hub.adapters.claude import ClaudeAdapter
-from collab_hub.adapters.codex import CodexAdapter
-from collab_hub.adapters.gemini import GeminiAdapter
+from modelmux.adapters.base import AdapterResult, BaseAdapter
+from modelmux.adapters.claude import ClaudeAdapter
+from modelmux.adapters.codex import CodexAdapter
+from modelmux.adapters.gemini import GeminiAdapter
 
 ADAPTERS: dict[str, type[BaseAdapter]] = {
     "codex": CodexAdapter,
