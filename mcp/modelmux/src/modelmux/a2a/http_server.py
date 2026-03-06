@@ -115,11 +115,7 @@ class TaskStore:
         if len(self._tasks) <= self._max_tasks:
             return
         completed = sorted(
-            (
-                (tid, e)
-                for tid, e in self._tasks.items()
-                if e.state in _TERMINAL_STATES
-            ),
+            ((tid, e) for tid, e in self._tasks.items() if e.state in _TERMINAL_STATES),
             key=lambda x: x[1].updated_at,
         )
         while len(self._tasks) > self._max_tasks and completed:
@@ -167,9 +163,7 @@ class TaskStore:
                     created_at=record.get("created_at", 0),
                     updated_at=record.get("updated_at", 0),
                 )
-            logger.info(
-                "Loaded %d tasks from %s", len(self._tasks), path
-            )
+            logger.info("Loaded %d tasks from %s", len(self._tasks), path)
         except (OSError, json.JSONDecodeError):
             logger.warning("Failed to load tasks from %s", path)
 
