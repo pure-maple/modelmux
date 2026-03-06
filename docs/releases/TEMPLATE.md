@@ -1,30 +1,46 @@
-<!-- Release notes template — copy this file and rename to vX.Y.Z.md -->
-<!-- All sections use bilingual format: English / 中文 -->
+<!-- Release notes template — copy and rename to vX.Y.Z.md -->
+<!-- English section first, then Chinese section, separated by --- -->
 
 ## modelmux vX.Y.Z
 
 One-sentence English summary of this release.
 
-一句话中文描述本次发布内容。
+### Highlights
 
-### Highlights / 亮点
+- **Feature Name**: English description of the feature.
+- **Another Feature**: English description.
 
-- **Feature Name / 功能名称**: English description of the feature.
-  中文描述该功能。
-
-- **Another Feature / 另一功能**: English description.
-  中文描述。
-
-### Test Coverage / 测试覆盖
+### Test Coverage
 
 N tests passing (M new tests)
 
-N 个测试通过（新增 M 个测试）
-
-### Install / 安装
+### Install
 
 ```bash
 uvx modelmux
 # or
+pip install modelmux==X.Y.Z
+```
+
+---
+
+## modelmux vX.Y.Z
+
+一句话中文描述本次发布内容。
+
+### 亮点
+
+- **功能名称**：中文描述该功能。
+- **另一功能**：中文描述。
+
+### 测试覆盖
+
+共 N 个测试通过（新增 M 个测试）
+
+### 安装
+
+```bash
+uvx modelmux
+# 或
 pip install modelmux==X.Y.Z
 ```
