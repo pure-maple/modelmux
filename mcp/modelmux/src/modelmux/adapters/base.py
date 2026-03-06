@@ -129,7 +129,11 @@ def stream_subprocess(
         elapsed = time.monotonic() - start_time
         if elapsed > timeout:
             process.terminate()
-            process.wait(timeout=5)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
             return 124  # timeout exit code
 
         try:
