@@ -293,3 +293,98 @@ def test_engine_cancel_event():
     assert result.state == TaskState.CANCELED
     # Should have zero or very few turns since we canceled immediately
     assert len(result.turns) == 0
+
+
+# --- Provider/Model spec tests ---
+
+def test_engine_parse_provider_spec():
+    """_parse_provider_spec correctly splits provider/model."""
+    assert CollaborationEngine._parse_provider_spec("codex") == ("codex", "")
+    assert CollaborationEngine._parse_provider_spec("dashscope/kimi-k2.5") == (
+        "dashscope",
+        "kimi-k2.5",
+    )
+    assert CollaborationEngine._parse_provider_spec("dashscope/MiniMax-M2.5") == (
+        "dashscope",
+        "MiniMax-M2.5",
+    )
+
+
+def test_engine_provider_model_in_overrides():
+    """Provider overrides with provider/model syntax should work."""
+    captured_extra_args = []
+
+    class TrackingAdapter(FakeCollabAdapter):
+        async def run(self, prompt="", workdir=".", sandbox="read-only",
+                      session_id="", timeout=300, extra_args=None,
+                      env_overrides=None, on_progress=None):
+            captured_extra_args.append(extra_args)
+            return await super().run(
+                prompt, workdir, sandbox, session_id, timeout,
+                extra_args, env_overrides, on_progress,
+            )
+
+    adapter = TrackingAdapter(response="CONVERGED: looks good")
+    engine = CollaborationEngine(
+        get_adapter=lambda p: adapter,
+        config=EngineConfig(),
+    )
+    result = asyncio.run(engine.run(
+        task="test dashscope model",
+        pattern_name="review",
+        providers={
+            "implementer": "dashscope/kimi-k2.5",
+            "reviewer": "dashscope/MiniMax-M2.5",
+            "reviser": "dashscope/kimi-k2.5",
+        },
+    ))
+    assert result.state == TaskState.COMPLETED
+    # At least one call should have model in extra_args
+    models_seen = [ea.get("model") for ea in captured_extra_args if ea]
+    assert "kimi-k2.5" in models_seen or "MiniMax-M2.5" in models_seen
+
+
+def test_engine_resolve_providers_preserves_spec():
+    """_resolve_providers should preserve provider/model specs from overrides."""
+    adapter = FakeCollabAdapter()
+    engine = CollaborationEngine(
+        get_adapter=lambda p: adapter,
+        config=EngineConfig(),
+    )
+    pattern = get_pattern("review")
+    mapping = engine._resolve_providers(
+        pattern,
+        {"implementer": "dashscope/kimi-k2.5", "reviewer": "claude"},
+    )
+    assert mapping["implementer"] == "dashscope/kimi-k2.5"
+    assert mapping["reviewer"] == "claude"
+    # reviser falls back to pattern default
+    assert mapping["reviser"] == "codex"
+
+
+def test_engine_plain_provider_no_extra_args():
+    """Plain provider without /model should not pass model in extra_args."""
+    captured_extra_args = []
+
+    class TrackingAdapter(FakeCollabAdapter):
+        async def run(self, prompt="", workdir=".", sandbox="read-only",
+                      session_id="", timeout=300, extra_args=None,
+                      env_overrides=None, on_progress=None):
+            captured_extra_args.append(extra_args)
+            return await super().run(
+                prompt, workdir, sandbox, session_id, timeout,
+                extra_args, env_overrides, on_progress,
+            )
+
+    adapter = TrackingAdapter(response="CONVERGED: approved")
+    engine = CollaborationEngine(
+        get_adapter=lambda p: adapter,
+        config=EngineConfig(),
+    )
+    asyncio.run(engine.run(
+        task="test plain provider",
+        pattern_name="review",
+        providers={"implementer": "codex", "reviewer": "gemini", "reviser": "codex"},
+    ))
+    # All calls should have None extra_args (no model specified)
+    assert all(ea is None for ea in captured_extra_args)

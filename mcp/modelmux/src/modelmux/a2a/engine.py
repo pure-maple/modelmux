@@ -263,15 +263,21 @@ class CollaborationEngine:
             output_schema=role_spec.output_hint,
         )
 
+        # Parse provider/model spec (e.g. "dashscope/kimi-k2.5")
+        base_provider, model = self._parse_provider_spec(provider)
+
         # Dispatch via adapter
-        adapter = self._get_adapter(provider)
+        adapter = self._get_adapter(base_provider)
         start = time.monotonic()
+
+        extra_args: dict | None = {"model": model} if model else None
 
         result: AdapterResult = await adapter.run(
             prompt=prompt,
             workdir=self._config.workdir,
             sandbox=self._config.sandbox,
             timeout=self._config.timeout_per_turn,
+            extra_args=extra_args,
         )
 
         duration = time.monotonic() - start
@@ -298,12 +304,24 @@ class CollaborationEngine:
 
         return turn
 
+    @staticmethod
+    def _parse_provider_spec(spec: str) -> tuple[str, str]:
+        """Parse 'provider/model' into (provider, model) tuple."""
+        if "/" in spec:
+            provider, model = spec.split("/", 1)
+            return provider, model
+        return spec, ""
+
     def _resolve_providers(
         self,
         pattern: CollaborationPattern,
         overrides: dict[str, str] | None,
     ) -> dict[str, str]:
-        """Resolve role → provider mapping."""
+        """Resolve role → provider mapping.
+
+        Values may use 'provider/model' syntax (e.g. 'dashscope/kimi-k2.5').
+        The full spec is preserved; _dispatch_role parses it to extract model.
+        """
         mapping: dict[str, str] = {}
         for role_name, role_spec in pattern.roles.items():
             if overrides and role_name in overrides:
