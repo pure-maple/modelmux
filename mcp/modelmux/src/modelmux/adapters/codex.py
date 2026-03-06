@@ -39,6 +39,29 @@ def _create_ascii_symlink(target: str) -> str:
     return link_path
 
 
+def _find_git_dir(workdir: str) -> str | None:
+    """Walk up from workdir to find the .git directory."""
+    current = os.path.realpath(workdir)
+    while True:
+        git_path = os.path.join(current, ".git")
+        if os.path.exists(git_path):
+            if os.path.isdir(git_path):
+                return git_path
+            # .git file (worktree) — read the gitdir pointer
+            try:
+                with open(git_path) as f:
+                    content = f.read().strip()
+                if content.startswith("gitdir:"):
+                    return content[len("gitdir:") :].strip()
+            except OSError:
+                pass
+            return None
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
 # Regex to filter out reconnection noise
 RECONNECT_RE = re.compile(r"^Reconnecting\.\.\.\s+\d+/\d+")
 
@@ -180,11 +203,16 @@ class CodexAdapter(BaseAdapter):
     ):
         """Execute with ASCII workdir workaround for Codex UTF-8 bug.
 
-        When workdir contains non-ASCII chars, we create an ASCII symlink
-        and set PWD env var so that Node.js process.cwd() (which prefers
-        PWD over the OS-resolved getcwd()) reports the symlink path.
-        Without PWD, the OS resolves the symlink back to the original
-        non-ASCII path, defeating the workaround.
+        When workdir contains non-ASCII chars, Codex CLI embeds the
+        workspace path in the x-codex-turn-metadata HTTP header, which
+        fails because HTTP headers require ASCII.
+
+        We create an ASCII symlink and set three env vars:
+        - PWD: Node.js process.cwd() prefers this over OS getcwd()
+        - GIT_WORK_TREE: prevents git from resolving the symlink
+          back to the real non-ASCII path via rev-parse --show-toplevel
+        - GIT_DIR: points git directly to the .git directory so it
+          doesn't walk up the directory tree through the symlink
         """
         ascii_link = ""
         actual_workdir = workdir
@@ -192,10 +220,13 @@ class CodexAdapter(BaseAdapter):
         if _needs_ascii_workaround(workdir):
             ascii_link = _create_ascii_symlink(workdir)
             actual_workdir = ascii_link
-            # Set PWD so Node.js process.cwd() uses the symlink path
-            # instead of the OS-resolved real path
             env_overrides = dict(env_overrides) if env_overrides else {}
             env_overrides["PWD"] = ascii_link
+            # Prevent git from resolving symlink to real non-ASCII path
+            git_dir = _find_git_dir(workdir)
+            if git_dir:
+                env_overrides["GIT_WORK_TREE"] = ascii_link
+                env_overrides["GIT_DIR"] = git_dir
 
         try:
             return await super().run(
