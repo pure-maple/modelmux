@@ -1,19 +1,15 @@
 """Tests for A2A HTTP Server."""
 
-import asyncio
-import json
 
 from starlette.testclient import TestClient
 
 from modelmux.a2a.http_server import (
     A2AServer,
     InvalidParamsError,
-    TaskNotFoundError,
     TaskStore,
     _extract_task_params,
 )
 from modelmux.adapters.base import AdapterResult, BaseAdapter
-
 
 # --- Fake adapter for testing ---
 
@@ -90,7 +86,11 @@ def test_agent_card_has_skills():
 
 def test_invalid_json():
     client = _make_client()
-    resp = client.post("/", content="not json", headers={"Content-Type": "application/json"})
+    resp = client.post(
+        "/",
+        content="not json",
+        headers={"Content-Type": "application/json"},
+    )
     assert resp.status_code == 400
     body = resp.json()
     assert body["error"]["code"] == -32700
@@ -161,10 +161,11 @@ def test_extract_task_params_basic():
             "parts": [{"type": "text", "text": "implement a REST API"}],
         }
     }
-    text, pattern, providers = _extract_task_params(params)
-    assert text == "implement a REST API"
-    assert pattern == "review"  # default
-    assert providers is None
+    tp = _extract_task_params(params)
+    assert tp.task_text == "implement a REST API"
+    assert tp.pattern == "review"  # default
+    assert tp.provider_map is None
+    assert tp.timeout_per_turn == 0
 
 
 def test_extract_task_params_with_metadata():
@@ -176,12 +177,14 @@ def test_extract_task_params_with_metadata():
         "metadata": {
             "pattern": "consensus",
             "providers": {"analyst_impl": "codex"},
+            "timeout_per_turn": 120,
         },
     }
-    text, pattern, providers = _extract_task_params(params)
-    assert text == "analyze this code"
-    assert pattern == "consensus"
-    assert providers == {"analyst_impl": "codex"}
+    tp = _extract_task_params(params)
+    assert tp.task_text == "analyze this code"
+    assert tp.pattern == "consensus"
+    assert tp.provider_map == {"analyst_impl": "codex"}
+    assert tp.timeout_per_turn == 120
 
 
 def test_extract_task_params_empty_message():
@@ -332,7 +335,9 @@ def test_e2e_send_consensus_pattern():
             "params": {
                 "message": {
                     "role": "user",
-                    "parts": [{"type": "text", "text": "evaluate microservices vs monolith"}],
+                    "parts": [
+                        {"type": "text", "text": "evaluate microservices vs monolith"}
+                    ],
                 },
                 "metadata": {"pattern": "consensus"},
             },
@@ -430,7 +435,7 @@ def test_cancel_completed_task_is_noop():
     """Canceling an already-completed task returns current state."""
     client = _make_client()
     # First send to create a completed task
-    send_resp = client.post(
+    client.post(
         "/",
         json={
             "jsonrpc": "2.0",
@@ -532,8 +537,8 @@ def test_multi_part_message():
             ],
         }
     }
-    text, pattern, providers = _extract_task_params(params)
-    assert text == "First part. Second part."
+    tp = _extract_task_params(params)
+    assert tp.task_text == "First part. Second part."
 
 
 # --- tasks/sendSubscribe Tests ---

@@ -43,6 +43,7 @@ dependencies = [
 
 [project.optional-dependencies]
 tui = ["textual>=1.0.0"]
+a2a = ["sse-starlette>=2.0.0"]
 
 [dependency-groups]
 dev = [

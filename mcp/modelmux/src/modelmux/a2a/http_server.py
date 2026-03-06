@@ -269,7 +269,7 @@ class A2AServer:
         self, params: dict[str, Any], request: Request
     ) -> dict[str, Any]:
         """tasks/send — submit a task and wait for completion."""
-        task_text, pattern, provider_map = _extract_task_params(params)
+        tp = _extract_task_params(params)
 
         # Create or resume task
         task_id = params.get("id", "")
@@ -281,11 +281,14 @@ class A2AServer:
         self.store.update(entry.task_id, state="working")
 
         # Run collaboration (cancel_event allows tasks/cancel to stop it)
-        engine = self._create_engine(cancel_event=entry.cancel_event)
+        engine = self._create_engine(
+            cancel_event=entry.cancel_event,
+            timeout_per_turn=tp.timeout_per_turn,
+        )
         collab = await engine.run(
-            task=task_text,
-            pattern_name=pattern,
-            providers=provider_map,
+            task=tp.task_text,
+            pattern_name=tp.pattern,
+            providers=tp.provider_map,
             context_id=entry.context_id,
         )
 
@@ -356,7 +359,7 @@ class A2AServer:
         """tasks/sendSubscribe — submit and stream updates via SSE."""
         from sse_starlette.sse import EventSourceResponse
 
-        task_text, pattern, provider_map = _extract_task_params(params)
+        tp = _extract_task_params(params)
 
         task_id = params.get("id", "")
         entry = self.store.get(task_id) if task_id else None
@@ -392,14 +395,15 @@ class A2AServer:
             engine = self._create_engine(
                 on_progress=on_progress,
                 cancel_event=entry.cancel_event,
+                timeout_per_turn=tp.timeout_per_turn,
             )
 
             # Run collaboration in background
             collab_future = asyncio.create_task(
                 engine.run(
-                    task=task_text,
-                    pattern_name=pattern,
-                    providers=provider_map,
+                    task=tp.task_text,
+                    pattern_name=tp.pattern,
+                    providers=tp.provider_map,
                     context_id=entry.context_id,
                 )
             )
@@ -486,13 +490,14 @@ class A2AServer:
         self,
         on_progress: Any = None,
         cancel_event: asyncio.Event | None = None,
+        timeout_per_turn: int = 0,
     ) -> CollaborationEngine:
         return CollaborationEngine(
             get_adapter=self._get_adapter,
             config=EngineConfig(
                 workdir=self.workdir,
                 sandbox=self.sandbox,
-                timeout_per_turn=600,
+                timeout_per_turn=timeout_per_turn or 600,
                 on_progress=on_progress,
                 cancel_event=cancel_event,
             ),
@@ -555,10 +560,18 @@ def _constant_time_compare(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode(), b.encode())
 
 
-def _extract_task_params(
-    params: dict[str, Any],
-) -> tuple[str, str, dict[str, str] | None]:
-    """Extract task text, pattern, and provider map from JSON-RPC params."""
+@dataclass
+class TaskParams:
+    """Parsed parameters from a JSON-RPC task request."""
+
+    task_text: str = ""
+    pattern: str = "review"
+    provider_map: dict[str, str] | None = None
+    timeout_per_turn: int = 0  # 0 = use server default
+
+
+def _extract_task_params(params: dict[str, Any]) -> TaskParams:
+    """Extract task parameters from JSON-RPC params."""
     # Extract task text from A2A message format
     message = params.get("message", {})
     parts = message.get("parts", [])
@@ -570,14 +583,18 @@ def _extract_task_params(
     if not task_text:
         raise InvalidParamsError("No task text found in message.parts")
 
-    # Extract pattern from metadata (default: review)
+    # Extract from metadata
     metadata = params.get("metadata", {}) or message.get("metadata", {})
     pattern = metadata.get("pattern", "review")
-
-    # Extract provider mapping
     provider_map = metadata.get("providers")
+    timeout_per_turn = int(metadata.get("timeout_per_turn", 0))
 
-    return task_text, pattern, provider_map
+    return TaskParams(
+        task_text=task_text,
+        pattern=pattern,
+        provider_map=provider_map,
+        timeout_per_turn=timeout_per_turn,
+    )
 
 
 def _collab_to_a2a_result(
