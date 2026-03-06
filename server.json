@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.pure-maple/modelmux",
+  "title": "modelmux",
+  "description": "Model multiplexer — route tasks to Codex, Gemini, and Claude CLIs with smart routing.",
+  "repository": {
+    "url": "https://github.com/pure-maple/modelmux",
+    "source": "github"
+  },
+  "version": "0.4.3",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "modelmux",
+      "version": "0.4.3",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
