@@ -1,13 +1,14 @@
 """CLI entry point for modelmux.
 
 Usage:
-  modelmux           Start the MCP server (stdio transport)
-  modelmux init      Interactive configuration wizard
-  modelmux config    TUI configuration panel (requires modelmux[tui])
-  modelmux check     Quick CLI availability check
-  modelmux status    Monitor active dispatches in real-time
-  modelmux history   View dispatch history and statistics
-  modelmux version   Show version
+  modelmux              Start the MCP server (stdio transport)
+  modelmux a2a-server   Start the A2A HTTP server
+  modelmux init         Interactive configuration wizard
+  modelmux config       TUI configuration panel (requires modelmux[tui])
+  modelmux check        Quick CLI availability check
+  modelmux status       Monitor active dispatches in real-time
+  modelmux history      View dispatch history and statistics
+  modelmux version      Show version
 """
 
 import argparse
@@ -175,6 +176,67 @@ def _cmd_history(args: argparse.Namespace) -> None:
     print()
 
 
+def _cmd_a2a_server(args: argparse.Namespace) -> None:
+    """Start the A2A HTTP server."""
+    # Load custom providers
+    from pathlib import Path
+
+    from modelmux.a2a.http_server import A2AServer
+    from modelmux.adapters import get_all_adapters, load_custom_providers
+    from modelmux.adapters.base import BaseAdapter
+    from modelmux.config import _find_config_file, _load_file
+
+    for cfg_dir in [
+        Path.home() / ".config" / "modelmux",
+        Path.cwd() / ".modelmux",
+    ]:
+        cfg_file = _find_config_file(cfg_dir)
+        if cfg_file:
+            try:
+                raw = _load_file(cfg_file)
+                load_custom_providers(raw)
+            except Exception:
+                pass
+
+    # Adapter resolver
+    adapter_cache: dict[str, BaseAdapter] = {}
+
+    def get_adapter(provider: str) -> BaseAdapter:
+        if provider not in adapter_cache:
+            all_adapters = get_all_adapters()
+            adapter_or_cls = all_adapters.get(provider)
+            if adapter_or_cls is None:
+                raise ValueError(f"Unknown provider: {provider}")
+            if isinstance(adapter_or_cls, BaseAdapter):
+                adapter_cache[provider] = adapter_or_cls
+            else:
+                adapter_cache[provider] = adapter_or_cls()
+        return adapter_cache[provider]
+
+    host = getattr(args, "host", "0.0.0.0")
+    port = getattr(args, "port", 41520)
+    workdir = getattr(args, "workdir", ".")
+    sandbox = getattr(args, "sandbox", "read-only")
+
+    from modelmux import __version__
+
+    print(f"modelmux A2A server v{__version__}")
+    print(f"  Listening on http://{host}:{port}")
+    print(f"  Agent Card: http://{host}:{port}/.well-known/agent.json")
+    print(f"  Workdir: {workdir}")
+    print(f"  Sandbox: {sandbox}")
+    print()
+
+    server = A2AServer(
+        get_adapter=get_adapter,
+        host=host,
+        port=port,
+        workdir=workdir,
+        sandbox=sandbox,
+    )
+    server.run()
+
+
 def _cmd_version() -> None:
     from modelmux import __version__
 
@@ -187,6 +249,20 @@ def main() -> None:
         description=("Model multiplexer — multi-model AI collaboration MCP server"),
     )
     subparsers = parser.add_subparsers(dest="command")
+
+    # modelmux a2a-server
+    a2a_p = subparsers.add_parser("a2a-server", help="Start the A2A HTTP server")
+    a2a_p.add_argument(
+        "--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)"
+    )
+    a2a_p.add_argument("--port", type=int, default=41520, help="Port (default: 41520)")
+    a2a_p.add_argument("--workdir", default=".", help="Working directory for agents")
+    a2a_p.add_argument(
+        "--sandbox",
+        choices=["read-only", "write", "full"],
+        default="read-only",
+        help="Sandbox level (default: read-only)",
+    )
 
     # modelmux init
     init_p = subparsers.add_parser("init", help="Interactive configuration wizard")
@@ -238,6 +314,8 @@ def main() -> None:
 
     if args.command is None:
         _cmd_server()
+    elif args.command == "a2a-server":
+        _cmd_a2a_server(args)
     elif args.command == "init":
         _cmd_init(args)
     elif args.command == "config":

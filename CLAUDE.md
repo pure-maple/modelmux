@@ -26,16 +26,31 @@ MCP Client → modelmux (FastMCP server, stdio)
       ├── GeminiAdapter → gemini -p -o stream-json
       ├── ClaudeAdapter → claude -p
       └── OllamaAdapter → ollama run <model>
+
+A2A HTTP Server (modelmux a2a-server)
+  ├── GET  /.well-known/agent.json  → Agent Card
+  ├── POST / (JSON-RPC 2.0)
+  │   ├── tasks/send          → synchronous task execution
+  │   ├── tasks/get           → query task state
+  │   ├── tasks/cancel        → cancel running task
+  │   └── tasks/sendSubscribe → SSE streaming
+  └── TaskStore (in-memory task management)
 ```
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `server.py` | MCP tools (dispatch, broadcast, history, check) |
+| `server.py` | MCP tools (dispatch, broadcast, collaborate, history, check) |
 | `adapters/base.py` | Threaded subprocess runner, canonical result schema |
 | `adapters/{codex,gemini,claude,ollama}.py` | Provider-specific adapters |
-| `a2a/` | A2A collaboration engine (types, context, convergence, patterns, engine) |
+| `a2a/` | A2A protocol implementation |
+| `a2a/types.py` | Data model (Task, Message, Artifact, AgentCard) |
+| `a2a/context.py` | Layered memory (pinned facts + rolling summary + recent window) |
+| `a2a/convergence.py` | 4-tier convergence detection |
+| `a2a/patterns.py` | Collaboration patterns (review, consensus, debate) |
+| `a2a/engine.py` | Multi-agent collaboration orchestrator |
+| `a2a/http_server.py` | A2A HTTP transport (JSON-RPC 2.0 + SSE) |
 | `routing.py` | Smart routing v2 (keyword + history scoring) |
 | `config.py` | Profile loading, routing rules |
 | `detect.py` | Caller platform detection |
@@ -61,5 +76,26 @@ MCP Client → modelmux (FastMCP server, stdio)
 - Config files: `~/.config/modelmux/` (user) or `.modelmux/` (project)
 - Status files: `~/.config/modelmux/status/{run_id}.json`
 - Chinese for internal docs, bilingual for public docs
+
+## Multi-Model Collaboration Protocol
+
+**复杂决策和架构设计必须与 GPT 和 Gemini 共同讨论**。具体要求：
+
+- **何时协作**: 涉及架构设计、协议选型、关键算法决策、竞品调研等复杂问题时，
+  必须通过 `mux_broadcast` 或 `mux_collaborate` 与其他模型共同讨论
+- **推荐配置**:
+  - GPT (Codex): `provider="codex"`, model="gpt-5.4", reasoning_effort="xhigh"
+  - Gemini: `provider="gemini"`, model="gemini-3.1-pro-preview"
+- **超时设置**: 深度研究任务超时可设为数小时甚至一天，不做严格限制
+- **代码审查**: 关键功能的代码审查可委托给 codex 和 gemini 共同完成
+
+## Documentation & Knowledge Management
+
+**关键里程碑和调研成果必须持久化为文档**：
+
+- **CHANGELOG**: 每个版本发布时更新 `docs/CHANGELOG.md`
+- **调研文档**: 有价值的调研结果保存到 `docs/research/` 目录，作为 AI 知识资产持续沉淀
+- **架构决策**: 重大架构决策记录到 `docs/decisions/` 目录 (ADR 格式)
+- **里程碑**: 关键功能完成时更新 CLAUDE.md 架构图和文件表
 
 See `docs/ROADMAP.md` for feature planning, `docs/CHANGELOG.md` for version history.

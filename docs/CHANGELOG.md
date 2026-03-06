@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.19.0 (2026-03-06)
+- **A2A HTTP Server**: 首个 Agent-to-Agent 协议 HTTP 传输层实现
+- `GET /.well-known/agent.json`: Agent Card 端点，自动从已安装的适配器和协作模式生成能力卡片
+- `POST /` JSON-RPC 2.0: 支持 `tasks/send`、`tasks/get`、`tasks/cancel` 方法
+- `tasks/sendSubscribe`: SSE 流式传输，实时推送协作进度、工件和状态变更事件
+- `TaskStore`: 内存任务存储，支持自动淘汰旧任务（上限 1000）
+- `modelmux a2a-server` CLI 子命令: `--host`、`--port`、`--workdir`、`--sandbox` 参数
+- 基于 Starlette + uvicorn（复用 mcp[cli] 传递依赖，零额外依赖）
+- Codex UTF-8 workaround: 非 ASCII workdir 自动创建临时 ASCII symlink
+- 17 个新测试（总计 107 个）
+
 ## v0.18.0 (2026-03-06)
 - **A2A 协作引擎**: 首个 Agent-to-Agent 协议实现，真正的多 agent 迭代协作
 - `mux_collaborate` MCP 工具: 支持 review/consensus/debate 三种协作模式
