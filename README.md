@@ -1,4 +1,4 @@
-# Multi-Model Collab
+# modelmux
 
 English | [中文](docs/README_CN.md)
 
@@ -21,7 +21,7 @@ This project lets any MCP-compatible platform orchestrate tasks across all three
 ```
 Any MCP Client (Claude Code / Codex CLI / Gemini CLI / IDE)
     │
-    └── collab-hub (unified MCP server)
+    └── modelmux (unified MCP server)
         ├── collab_dispatch(provider, task, ...) → Canonical Result
         └── collab_check() → availability status
             │
@@ -49,8 +49,8 @@ Any MCP Client (Claude Code / Codex CLI / Gemini CLI / IDE)
 ### Install
 
 ```bash
-git clone https://github.com/pure-maple/multi-model-collab.git
-cd multi-model-collab
+git clone https://github.com/pure-maple/modelmux.git
+cd modelmux
 
 # Install for Claude Code (one command)
 ./install.sh --claude
@@ -66,15 +66,15 @@ cd multi-model-collab
 
 ```bash
 # Claude Code
-claude mcp add collab-hub -s user -- uvx collab-hub
+claude mcp add modelmux -s user -- uvx modelmux
 
 # Codex CLI (~/.codex/config.toml)
-[mcp_servers.collab-hub]
+[mcp_servers.modelmux]
 command = "uvx"
-args = ["collab-hub"]
+args = ["modelmux"]
 
 # Gemini CLI (~/.gemini/settings.json)
-{"mcpServers": {"collab-hub": {"command": "uvx", "args": ["collab-hub"]}}}
+{"mcpServers": {"modelmux": {"command": "uvx", "args": ["modelmux"]}}}
 ```
 
 ## Usage
@@ -112,13 +112,13 @@ Copy `SKILL.md` to your skills directory:
 
 ```bash
 # Claude Code
-cp SKILL.md ~/.claude/skills/multi-model-collab/SKILL.md
+cp SKILL.md ~/.claude/skills/modelmux/SKILL.md
 
 # Codex CLI
-cp SKILL.md .agents/skills/multi-model-collab/SKILL.md
+cp SKILL.md .agents/skills/modelmux/SKILL.md
 
 # Gemini CLI
-cp SKILL.md .gemini/skills/multi-model-collab/SKILL.md
+cp SKILL.md .gemini/skills/modelmux/SKILL.md
 ```
 
 ## Smart Routing & Caller Detection
@@ -135,7 +135,7 @@ collab_dispatch(provider="auto", task="Implement a REST API")
 
 ### User Configuration
 
-Create `.collab-hub/profiles.toml` (project-level) or `~/.config/collab-hub/profiles.toml` (user-level):
+Create `.modelmux/profiles.toml` (project-level) or `~/.config/modelmux/profiles.toml` (user-level):
 
 ```toml
 # Custom routing rules
@@ -185,11 +185,11 @@ All results follow the canonical schema:
 
 ## Audit Logging & Policy Engine
 
-Every `collab_dispatch` call is logged to `~/.config/collab-hub/audit.jsonl` (JSONL format) for debugging, cost tracking, and rate limiting.
+Every `collab_dispatch` call is logged to `~/.config/modelmux/audit.jsonl` (JSONL format) for debugging, cost tracking, and rate limiting.
 
 ### Policy Enforcement
 
-Create `~/.config/collab-hub/policy.json` to enforce security constraints:
+Create `~/.config/modelmux/policy.json` to enforce security constraints:
 
 ```json
 {
@@ -218,12 +218,12 @@ Blocked requests return `{"status": "blocked", "error": "Policy denied: ..."}`.
 ## Project Structure
 
 ```
-multi-model-collab/
+modelmux/
 ├── SKILL.md                    # Agent Skill definition (MCP-first)
 ├── install.sh                  # One-command installer
-├── mcp/collab-hub/             # Unified MCP server
+├── mcp/modelmux/             # Unified MCP server
 │   ├── pyproject.toml
-│   └── src/collab_hub/
+│   └── src/modelmux/
 │       ├── server.py           # MCP tools: collab_dispatch, collab_check
 │       ├── config.py           # User profiles, routing rules, config loading
 │       ├── detect.py           # Caller platform detection & auto-exclusion

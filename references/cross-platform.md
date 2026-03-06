@@ -5,8 +5,8 @@
 ### MCP Server Registration
 
 ```bash
-claude mcp add collab-hub -s user --transport stdio -- \
-  uvx --from /path/to/mcp/collab-hub collab-hub
+claude mcp add modelmux -s user --transport stdio -- \
+  uvx --from /path/to/mcp/modelmux modelmux
 ```
 
 ### Auto-Approve Tool Calls (optional)
@@ -17,8 +17,8 @@ Add to `~/.claude/settings.json`:
 {
   "permissions": {
     "allow": [
-      "mcp__collab-hub__collab_dispatch",
-      "mcp__collab-hub__collab_check"
+      "mcp__modelmux__collab_dispatch",
+      "mcp__modelmux__collab_check"
     ]
   }
 }
@@ -27,8 +27,8 @@ Add to `~/.claude/settings.json`:
 ### Skill Installation
 
 ```bash
-mkdir -p ~/.claude/skills/multi-model-collab
-cp SKILL.md ~/.claude/skills/multi-model-collab/SKILL.md
+mkdir -p ~/.claude/skills/modelmux
+cp SKILL.md ~/.claude/skills/modelmux/SKILL.md
 ```
 
 ---
@@ -40,9 +40,9 @@ cp SKILL.md ~/.claude/skills/multi-model-collab/SKILL.md
 Add to `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.collab-hub]
+[mcp_servers.modelmux]
 command = "uvx"
-args = ["--from", "/path/to/mcp/collab-hub", "collab-hub"]
+args = ["--from", "/path/to/mcp/modelmux", "modelmux"]
 required = false
 enabled_tools = ["collab_dispatch", "collab_check"]
 tool_timeout_sec = 600
@@ -52,8 +52,8 @@ startup_timeout_sec = 30
 ### Skill Installation
 
 ```bash
-mkdir -p .agents/skills/multi-model-collab
-cp SKILL.md .agents/skills/multi-model-collab/SKILL.md
+mkdir -p .agents/skills/modelmux
+cp SKILL.md .agents/skills/modelmux/SKILL.md
 ```
 
 ---
@@ -67,9 +67,9 @@ Add to `~/.gemini/settings.json`:
 ```json
 {
   "mcpServers": {
-    "collab-hub": {
+    "modelmux": {
       "command": "uvx",
-      "args": ["--from", "/path/to/mcp/collab-hub", "collab-hub"],
+      "args": ["--from", "/path/to/mcp/modelmux", "modelmux"],
       "timeout": 30000
     }
   }
@@ -79,8 +79,8 @@ Add to `~/.gemini/settings.json`:
 ### Skill Installation
 
 ```bash
-mkdir -p .gemini/skills/multi-model-collab
-cp SKILL.md .gemini/skills/multi-model-collab/SKILL.md
+mkdir -p .gemini/skills/modelmux
+cp SKILL.md .gemini/skills/modelmux/SKILL.md
 ```
 
 ---
@@ -94,9 +94,9 @@ Add to MCP settings (`.vscode/mcp.json` or extension settings):
 ```json
 {
   "servers": {
-    "collab-hub": {
+    "modelmux": {
       "command": "uvx",
-      "args": ["--from", "/path/to/mcp/collab-hub", "collab-hub"],
+      "args": ["--from", "/path/to/mcp/modelmux", "modelmux"],
       "transport": "stdio"
     }
   }
@@ -110,9 +110,9 @@ Add to `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "collab-hub": {
+    "modelmux": {
       "command": "uvx",
-      "args": ["--from", "/path/to/mcp/collab-hub", "collab-hub"]
+      "args": ["--from", "/path/to/mcp/modelmux", "modelmux"]
     }
   }
 }
@@ -125,9 +125,9 @@ Add to Windsurf MCP configuration:
 ```json
 {
   "mcpServers": {
-    "collab-hub": {
+    "modelmux": {
       "command": "uvx",
-      "args": ["--from", "/path/to/mcp/collab-hub", "collab-hub"]
+      "args": ["--from", "/path/to/mcp/modelmux", "modelmux"]
     }
   }
 }
@@ -137,10 +137,10 @@ Add to Windsurf MCP configuration:
 
 ## Troubleshooting
 
-### collab-hub not connecting
+### modelmux not connecting
 
 1. Check uvx is installed: `uvx --version`
-2. Check the package builds: `cd mcp/collab-hub && uvx --from . collab-hub --help`
+2. Check the package builds: `cd mcp/modelmux && uvx --from . modelmux --help`
 3. Check MCP registration: `claude mcp list` / check config files
 
 ### Model CLI not found

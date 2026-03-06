@@ -1,7 +1,7 @@
-"""Audit logging for collab-hub dispatch calls.
+"""Audit logging for modelmux dispatch calls.
 
 Every collab_dispatch call is recorded as a JSONL entry in:
-  ~/.config/collab-hub/audit.jsonl
+  ~/.config/modelmux/audit.jsonl
 
 This provides a tamper-evident trail for debugging, cost tracking,
 and policy enforcement (rate limiting reads from this log).
@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 def _audit_dir() -> Path:
-    return Path.home() / ".config" / "collab-hub"
+    return Path.home() / ".config" / "modelmux"
 
 
 def _audit_file() -> Path:

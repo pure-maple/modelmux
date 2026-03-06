@@ -1,6 +1,6 @@
-# collab-hub
+# modelmux
 
-Unified MCP server for cross-platform multi-model AI collaboration.
+Model multiplexer — unified MCP server for cross-platform multi-model AI collaboration.
 
 Route tasks to **Codex CLI**, **Gemini CLI**, and **Claude Code CLI** through a single MCP interface with smart routing and caller auto-detection.
 
@@ -8,15 +8,15 @@ Route tasks to **Codex CLI**, **Gemini CLI**, and **Claude Code CLI** through a 
 
 ```bash
 # One-command install for Claude Code
-claude mcp add collab-hub -s user -- uvx collab-hub
+claude mcp add modelmux -s user -- uvx modelmux
 
 # Codex CLI (~/.codex/config.toml)
-# [mcp_servers.collab-hub]
+# [mcp_servers.modelmux]
 # command = "uvx"
-# args = ["collab-hub"]
+# args = ["modelmux"]
 
 # Gemini CLI (~/.gemini/settings.json)
-# {"mcpServers": {"collab-hub": {"command": "uvx", "args": ["collab-hub"]}}}
+# {"mcpServers": {"modelmux": {"command": "uvx", "args": ["modelmux"]}}}
 ```
 
 ## Tools
@@ -38,9 +38,9 @@ From Codex CLI → routes to Claude or Gemini (never back to Codex)
 
 ## Audit & Policy
 
-Every dispatch call is logged to `~/.config/collab-hub/audit.jsonl` for debugging and cost tracking.
+Every dispatch call is logged to `~/.config/modelmux/audit.jsonl` for debugging and cost tracking.
 
-Policy enforcement via `~/.config/collab-hub/policy.json`:
+Policy enforcement via `~/.config/modelmux/policy.json`:
 
 ```json
 {
@@ -56,7 +56,7 @@ Policy enforcement via `~/.config/collab-hub/policy.json`:
 
 ## User Configuration
 
-Create `.collab-hub/profiles.toml` or `~/.config/collab-hub/profiles.toml`:
+Create `.modelmux/profiles.toml` or `~/.config/modelmux/profiles.toml`:
 
 ```toml
 [routing]
@@ -74,8 +74,8 @@ model = "gpt-4.1-mini"
 
 ## Links
 
-- [Full Documentation](https://github.com/pure-maple/multi-model-collab)
-- [中文文档](https://github.com/pure-maple/multi-model-collab/blob/main/docs/README_CN.md)
+- [Full Documentation](https://github.com/pure-maple/modelmux)
+- [中文文档](https://github.com/pure-maple/modelmux/blob/main/docs/README_CN.md)
 
 ## License
 

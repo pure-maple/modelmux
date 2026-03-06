@@ -1,6 +1,6 @@
-"""Entry point for the collab-hub MCP server."""
+"""Entry point for the modelmux MCP server."""
 
-from collab_hub.server import mcp
+from modelmux.server import mcp
 
 
 def main():

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "collab-hub"
-version = "0.3.0"
-description = "Unified MCP server for cross-platform multi-model AI collaboration"
+name = "modelmux"
+version = "0.4.0"
+description = "Model multiplexer — unified MCP server for cross-platform multi-model AI collaboration"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -17,6 +17,8 @@ keywords = [
     "ai",
     "collaboration",
     "multi-model",
+    "modelmux",
+    "multiplexer",
     "codex",
     "gemini",
     "claude",
@@ -47,16 +49,16 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pure-maple/multi-model-collab"
-Repository = "https://github.com/pure-maple/multi-model-collab"
-Issues = "https://github.com/pure-maple/multi-model-collab/issues"
-Documentation = "https://github.com/pure-maple/multi-model-collab#readme"
+Homepage = "https://github.com/pure-maple/modelmux"
+Repository = "https://github.com/pure-maple/modelmux"
+Issues = "https://github.com/pure-maple/modelmux/issues"
+Documentation = "https://github.com/pure-maple/modelmux#readme"
 
 [project.scripts]
-collab-hub = "collab_hub.cli:main"
+modelmux = "modelmux.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/collab_hub"]
+packages = ["src/modelmux"]
 
 [tool.ruff]
 target-version = "py310"

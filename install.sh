@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — Install the collab-hub MCP server
+# install.sh — Install the modelmux MCP server
 #
 # Usage:
 #   ./install.sh                    # Install for Claude Code (user scope)
@@ -14,10 +14,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HUB_DIR="${SCRIPT_DIR}/mcp/collab-hub"
+HUB_DIR="${SCRIPT_DIR}/mcp/modelmux"
 USE_LOCAL=false
 # uvx source: PyPI by default, local with --local flag
-UVX_SRC="collab-hub"
+UVX_SRC="modelmux"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -87,43 +87,43 @@ check_prerequisites() {
 }
 
 install_claude() {
-    info "Installing collab-hub for Claude Code..."
+    info "Installing modelmux for Claude Code..."
     if [ "$USE_LOCAL" = true ]; then
-        claude mcp add collab-hub -s user --transport stdio -- \
-            uvx --from "${HUB_DIR}" collab-hub
+        claude mcp add modelmux -s user --transport stdio -- \
+            uvx --from "${HUB_DIR}" modelmux
     else
-        claude mcp add collab-hub -s user --transport stdio -- \
-            uvx collab-hub
+        claude mcp add modelmux -s user --transport stdio -- \
+            uvx modelmux
     fi
-    info "Claude Code: collab-hub registered (user scope)"
+    info "Claude Code: modelmux registered (user scope)"
     echo ""
     echo "  Optional: auto-approve tool calls by adding to ~/.claude/settings.json:"
-    echo '    "permissions": { "allow": ["mcp__collab-hub__collab_dispatch"] }'
+    echo '    "permissions": { "allow": ["mcp__modelmux__collab_dispatch"] }'
 }
 
 install_codex() {
     local config_dir="${HOME}/.codex"
     local config_file="${config_dir}/config.toml"
 
-    info "Installing collab-hub for Codex CLI..."
+    info "Installing modelmux for Codex CLI..."
 
     mkdir -p "${config_dir}"
 
-    # Check if config exists and already has collab-hub
-    if [ -f "${config_file}" ] && grep -q "mcp_servers.collab-hub" "${config_file}" 2>/dev/null; then
-        warn "collab-hub already configured in ${config_file}"
+    # Check if config exists and already has modelmux
+    if [ -f "${config_file}" ] && grep -q "mcp_servers.modelmux" "${config_file}" 2>/dev/null; then
+        warn "modelmux already configured in ${config_file}"
         return
     fi
 
     # Append MCP server config
     if [ "$USE_LOCAL" = true ]; then
-        local uvx_args='["--from", "'"${HUB_DIR}"'", "collab-hub"]'
+        local uvx_args='["--from", "'"${HUB_DIR}"'", "modelmux"]'
     else
-        local uvx_args='["collab-hub"]'
+        local uvx_args='["modelmux"]'
     fi
     cat >> "${config_file}" <<TOML
 
-[mcp_servers.collab-hub]
+[mcp_servers.modelmux]
 command = "uvx"
 args = ${uvx_args}
 required = false
@@ -132,23 +132,23 @@ tool_timeout_sec = 600
 startup_timeout_sec = 30
 TOML
 
-    info "Codex CLI: collab-hub added to ${config_file}"
+    info "Codex CLI: modelmux added to ${config_file}"
 }
 
 install_gemini() {
     local config_dir="${HOME}/.gemini"
     local config_file="${config_dir}/settings.json"
 
-    info "Installing collab-hub for Gemini CLI..."
+    info "Installing modelmux for Gemini CLI..."
 
     mkdir -p "${config_dir}"
 
     # Build args JSON based on local/PyPI mode
     local args_json
     if [ "$USE_LOCAL" = true ]; then
-        args_json="[\"--from\", \"${HUB_DIR}\", \"collab-hub\"]"
+        args_json="[\"--from\", \"${HUB_DIR}\", \"modelmux\"]"
     else
-        args_json="[\"collab-hub\"]"
+        args_json="[\"modelmux\"]"
     fi
 
     COLLAB_ARGS_JSON="$args_json" python3 -c "
@@ -161,12 +161,12 @@ config = {}
 if os.path.isfile(config_file):
     with open(config_file, 'r') as f:
         config = json.load(f)
-    if 'collab-hub' in config.get('mcpServers', {}):
-        print('[!] collab-hub already configured in ' + config_file)
+    if 'modelmux' in config.get('mcpServers', {}):
+        print('[!] modelmux already configured in ' + config_file)
         sys.exit(0)
 
 config.setdefault('mcpServers', {})
-config['mcpServers']['collab-hub'] = {
+config['mcpServers']['modelmux'] = {
     'command': 'uvx',
     'args': args,
     'timeout': 30000
@@ -175,33 +175,33 @@ with open(config_file, 'w') as f:
     json.dump(config, f, indent=2)
 "
 
-    info "Gemini CLI: collab-hub added to ${config_file}"
+    info "Gemini CLI: modelmux added to ${config_file}"
 }
 
 uninstall() {
-    echo "Uninstalling collab-hub..."
+    echo "Uninstalling modelmux..."
 
     # Claude Code
     if command -v claude &>/dev/null; then
-        claude mcp remove collab-hub -s user 2>/dev/null && \
+        claude mcp remove modelmux -s user 2>/dev/null && \
             info "Removed from Claude Code" || \
             warn "Not found in Claude Code"
     fi
 
     # Codex
     local codex_config="${HOME}/.codex/config.toml"
-    if [ -f "${codex_config}" ] && grep -q "collab-hub" "${codex_config}"; then
-        warn "Please manually remove [mcp_servers.collab-hub] from ${codex_config}"
+    if [ -f "${codex_config}" ] && grep -q "modelmux" "${codex_config}"; then
+        warn "Please manually remove [mcp_servers.modelmux] from ${codex_config}"
     fi
 
     # Gemini
     local gemini_config="${HOME}/.gemini/settings.json"
-    if [ -f "${gemini_config}" ] && grep -q "collab-hub" "${gemini_config}"; then
+    if [ -f "${gemini_config}" ] && grep -q "modelmux" "${gemini_config}"; then
         python3 -c "
 import json
 with open('${gemini_config}', 'r') as f:
     config = json.load(f)
-config.get('mcpServers', {}).pop('collab-hub', None)
+config.get('mcpServers', {}).pop('modelmux', None)
 with open('${gemini_config}', 'w') as f:
     json.dump(config, f, indent=2)
 " && info "Removed from Gemini CLI" || warn "Failed to update Gemini config"
@@ -243,7 +243,7 @@ if [ "$ACTION" = "uninstall" ]; then
     exit 0
 fi
 
-echo "=== collab-hub MCP Server Installer ==="
+echo "=== modelmux MCP Server Installer ==="
 echo ""
 
 check_prerequisites || exit 1

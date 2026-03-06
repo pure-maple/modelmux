@@ -1,6 +1,6 @@
 """Caller platform detection for auto-exclusion.
 
-Detects which CLI/IDE is calling collab-hub so the hub can automatically
+Detects which CLI/IDE is calling modelmux so the hub can automatically
 exclude the caller from auto-routing (prevents self-dispatch loops).
 
 Detection priority:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 
-from collab_hub.adapters.base import BaseAdapter
+from modelmux.adapters.base import BaseAdapter
 
 # Regex to filter out reconnection noise
 RECONNECT_RE = re.compile(r"^Reconnecting\.\.\.\s+\d+/\d+")
