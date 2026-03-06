@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.20.0 (2026-03-07)
+- **结构化 Release Notes**: 每个版本独立的中英双语发布说明 (`docs/releases/`)
+- **CI 自动 GitHub Release**: tag 推送后自动从 `docs/releases/{tag}.md` 创建 Release
+- **历史版本补全**: 补全 v0.1.0 ~ v0.19.0 所有版本的详细 Release Notes
+- **TaskStore JSONL 持久化**: A2A 终端任务持久化到 `a2a-tasks.jsonl`，重启恢复
+- **A2A E2E 测试**: 10 个异步集成测试 (httpx AsyncClient + ASGI transport)
+- **`--no-persist` CLI 参数**: 禁用持久化，仅内存运行
+- 146 个测试全部通过
+
 ## v0.19.0 (2026-03-06)
 - **A2A HTTP Server**: 首个 Agent-to-Agent 协议 HTTP 传输层实现
 - `GET /.well-known/agent.json`: Agent Card 端点，自动从已安装的适配器和协作模式生成能力卡片
