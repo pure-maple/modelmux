@@ -306,7 +306,8 @@ def _cmd_a2a_server(args: argparse.Namespace) -> None:
             except Exception:
                 logger.warning(
                     "Failed to load custom providers from %s",
-                    cfg_file, exc_info=True,
+                    cfg_file,
+                    exc_info=True,
                 )
 
     # Adapter resolver
@@ -384,7 +385,8 @@ def main() -> None:
     # modelmux a2a-server
     a2a_p = subparsers.add_parser("a2a-server", help="Start the A2A HTTP server")
     a2a_p.add_argument(
-        "--host", default="127.0.0.1",
+        "--host",
+        default="127.0.0.1",
         help="Bind address (default: 127.0.0.1, use 0.0.0.0 for network access)",
     )
     a2a_p.add_argument("--port", type=int, default=41520, help="Port (default: 41520)")
@@ -453,21 +455,15 @@ def main() -> None:
     )
 
     # modelmux benchmark
-    bench_p = subparsers.add_parser(
-        "benchmark", help="Run provider benchmark suite"
-    )
+    bench_p = subparsers.add_parser("benchmark", help="Run provider benchmark suite")
     bench_p.add_argument(
         "--providers", nargs="+", help="Providers to test (default: auto-detect)"
     )
-    bench_p.add_argument(
-        "--tasks", nargs="+", help="Task names to run (default: all)"
-    )
+    bench_p.add_argument("--tasks", nargs="+", help="Task names to run (default: all)")
     bench_p.add_argument(
         "--timeout", type=int, default=120, help="Per-task timeout (default: 120s)"
     )
-    bench_p.add_argument(
-        "--output", "-o", default="", help="Save results to JSON file"
-    )
+    bench_p.add_argument("--output", "-o", default="", help="Save results to JSON file")
     bench_p.add_argument(
         "--list-tasks", action="store_true", help="List available benchmark tasks"
     )
@@ -499,9 +495,7 @@ def main() -> None:
     dash_p.add_argument(
         "--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)"
     )
-    dash_p.add_argument(
-        "--port", type=int, default=41521, help="Port (default: 41521)"
-    )
+    dash_p.add_argument("--port", type=int, default=41521, help="Port (default: 41521)")
 
     # modelmux version
     subparsers.add_parser("version", help="Show version")

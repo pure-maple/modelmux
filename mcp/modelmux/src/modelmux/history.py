@@ -44,6 +44,7 @@ def log_result(result_dict: dict, task: str = "", source: str = "dispatch") -> N
         # Invalidate routing cache so next route sees new history
         try:
             from modelmux.routing import invalidate_routing_cache
+
             invalidate_routing_cache()
         except ImportError:
             pass
@@ -211,9 +212,7 @@ def get_trends(hours: float = 24, bucket_minutes: int = 60) -> dict:
     for k in sorted_keys:
         b = buckets_map[k]
         cumulative_cost += b["cost"]
-        avg_dur = (
-            round(b["total_duration"] / b["count"], 1) if b["count"] > 0 else 0
-        )
+        avg_dur = round(b["total_duration"] / b["count"], 1) if b["count"] > 0 else 0
         success_rate = (
             round(b["success"] / b["count"] * 100, 1) if b["count"] > 0 else 0
         )

@@ -31,7 +31,9 @@ def _clamp_int(raw: str, default: int, lo: int = 1, hi: int = 10000) -> int:
         return default
 
 
-def _clamp_float(raw: str, default: float, lo: float = 0.0, hi: float = 8760.0) -> float:
+def _clamp_float(
+    raw: str, default: float, lo: float = 0.0, hi: float = 8760.0
+) -> float:
     """Parse and clamp a float query param to [lo, hi]."""
     try:
         return max(lo, min(hi, float(raw)))
@@ -44,9 +46,7 @@ async def api_status(request: Request) -> JSONResponse:
     from modelmux.status import list_active
 
     active = list_active()
-    return JSONResponse(
-        {"active": [asdict(s) for s in active], "count": len(active)}
-    )
+    return JSONResponse({"active": [asdict(s) for s in active], "count": len(active)})
 
 
 async def api_history(request: Request) -> JSONResponse:
@@ -121,7 +121,9 @@ async def api_trends(request: Request) -> JSONResponse:
     from modelmux.history import get_trends
 
     hours = _clamp_float(request.query_params.get("hours", "24"), 24.0, lo=0.1)
-    bucket_minutes = _clamp_int(request.query_params.get("bucket", "60"), 60, lo=1, hi=1440)
+    bucket_minutes = _clamp_int(
+        request.query_params.get("bucket", "60"), 60, lo=1, hi=1440
+    )
     trends = get_trends(hours=hours, bucket_minutes=bucket_minutes)
     return JSONResponse(trends)
 
@@ -133,9 +135,7 @@ async def api_collaborations(request: Request) -> JSONResponse:
     limit = _clamp_int(request.query_params.get("limit", "10"), 10)
     hours = _clamp_float(request.query_params.get("hours", "0"), 0.0)
 
-    entries = read_history(
-        HistoryQuery(limit=limit, source="collaborate", hours=hours)
-    )
+    entries = read_history(HistoryQuery(limit=limit, source="collaborate", hours=hours))
     # Each entry should have turns array from mux_collaborate
     collabs = []
     for e in entries:
@@ -179,16 +179,22 @@ async def api_feedback(request: Request) -> JSONResponse:
         provider_summary[prov]["ratings"].append(e.get("rating", 0))
 
     for prov, summary in provider_summary.items():
-        summary["avg_rating"] = round(summary["total_rating"] / summary["count"], 2) if summary["count"] else 0
+        summary["avg_rating"] = (
+            round(summary["total_rating"] / summary["count"], 2)
+            if summary["count"]
+            else 0
+        )
         summary["score"] = round(scores.get(prov, 0.5), 3)
         del summary["ratings"]  # don't send raw list
 
-    return JSONResponse({
-        "total_entries": len(entries),
-        "recent": entries[-20:],  # last 20 entries
-        "by_provider": provider_summary,
-        "hours": hours,
-    })
+    return JSONResponse(
+        {
+            "total_entries": len(entries),
+            "recent": entries[-20:],  # last 20 entries
+            "by_provider": provider_summary,
+            "hours": hours,
+        }
+    )
 
 
 async def api_costs(request: Request) -> JSONResponse:

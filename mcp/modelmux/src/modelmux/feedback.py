@@ -53,6 +53,7 @@ def log_feedback(
     # Invalidate routing cache so next route sees new feedback
     try:
         from modelmux.routing import invalidate_routing_cache
+
         invalidate_routing_cache()
     except ImportError:
         pass

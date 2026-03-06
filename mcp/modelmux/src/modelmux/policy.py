@@ -63,7 +63,8 @@ def load_policy() -> Policy:
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning(
             "Failed to parse policy file %s: %s — using permissive default",
-            path, exc,
+            path,
+            exc,
         )
         return Policy()
 

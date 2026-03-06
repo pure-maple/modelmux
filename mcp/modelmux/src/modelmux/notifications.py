@@ -73,9 +73,7 @@ def _detect_format(url: str, explicit: str) -> str:
     return "generic"
 
 
-def _build_payload(
-    result: dict, task: str, source: str, fmt: str
-) -> dict:
+def _build_payload(result: dict, task: str, source: str, fmt: str) -> dict:
     """Build webhook payload based on format."""
     provider = result.get("provider", "unknown")
     status = result.get("status", "unknown")

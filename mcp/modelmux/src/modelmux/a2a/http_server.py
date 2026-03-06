@@ -337,14 +337,18 @@ class A2AServer:
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > 1_048_576:
             return _jsonrpc_error(
-                None, INVALID_REQUEST, "Request body too large (max 1MB)",
+                None,
+                INVALID_REQUEST,
+                "Request body too large (max 1MB)",
             )
 
         try:
             raw_body = await request.body()
             if len(raw_body) > 1_048_576:
                 return _jsonrpc_error(
-                    None, INVALID_REQUEST, "Request body too large (max 1MB)",
+                    None,
+                    INVALID_REQUEST,
+                    "Request body too large (max 1MB)",
                 )
             body = json.loads(raw_body)
         except Exception:
@@ -779,11 +783,29 @@ def _validate_push_url(url: str) -> bool:
         return False
 
     # Block loopback and link-local addresses
-    blocked_prefixes = ("127.", "169.254.", "10.", "172.16.", "172.17.",
-                        "172.18.", "172.19.", "172.20.", "172.21.",
-                        "172.22.", "172.23.", "172.24.", "172.25.",
-                        "172.26.", "172.27.", "172.28.", "172.29.",
-                        "172.30.", "172.31.", "192.168.", "0.")
+    blocked_prefixes = (
+        "127.",
+        "169.254.",
+        "10.",
+        "172.16.",
+        "172.17.",
+        "172.18.",
+        "172.19.",
+        "172.20.",
+        "172.21.",
+        "172.22.",
+        "172.23.",
+        "172.24.",
+        "172.25.",
+        "172.26.",
+        "172.27.",
+        "172.28.",
+        "172.29.",
+        "172.30.",
+        "172.31.",
+        "192.168.",
+        "0.",
+    )
     if hostname in ("localhost", "::1", "[::1]", "metadata.google.internal"):
         return False
     if any(hostname.startswith(p) for p in blocked_prefixes):

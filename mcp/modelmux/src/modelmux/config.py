@@ -76,9 +76,15 @@ class ProviderConfig:
 
         # Block dangerous env vars that could hijack subprocess execution
         _BLOCKED_ENV = {
-            "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH",
-            "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
-            "PYTHONPATH", "HOME", "SHELL", "USER",
+            "PATH",
+            "LD_PRELOAD",
+            "LD_LIBRARY_PATH",
+            "DYLD_INSERT_LIBRARIES",
+            "DYLD_LIBRARY_PATH",
+            "PYTHONPATH",
+            "HOME",
+            "SHELL",
+            "USER",
         }
         for k, v in self.extra_env.items():
             if k.upper() not in _BLOCKED_ENV:
@@ -209,9 +215,15 @@ def _parse_routing_rule(data: dict[str, Any]) -> RoutingRule:
 
 
 _KNOWN_TOP_KEYS = {
-    "active_profile", "routing", "disabled_providers",
-    "caller_override", "auto_exclude_caller", "profiles",
-    "providers", "notifications", "workflows",
+    "active_profile",
+    "routing",
+    "disabled_providers",
+    "caller_override",
+    "auto_exclude_caller",
+    "profiles",
+    "providers",
+    "notifications",
+    "workflows",
 }
 
 
@@ -221,8 +233,7 @@ def _parse_config(data: dict[str, Any]) -> MuxConfig:
     unknown = set(data.keys()) - _KNOWN_TOP_KEYS
     if unknown:
         logger.warning(
-            "Unknown config keys (possible typo): %s. "
-            "Valid keys: %s",
+            "Unknown config keys (possible typo): %s. Valid keys: %s",
             ", ".join(sorted(unknown)),
             ", ".join(sorted(_KNOWN_TOP_KEYS)),
         )
@@ -305,7 +316,8 @@ def load_config(workdir: str = ".") -> MuxConfig:
         except Exception:
             logger.warning(
                 "Failed to parse project config %s",
-                project_file, exc_info=True,
+                project_file,
+                exc_info=True,
             )
 
     return config

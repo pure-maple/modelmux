@@ -53,6 +53,7 @@ def invalidate_routing_cache() -> None:
     """Clear routing caches. Call after dispatches or feedback."""
     _cache.clear()
 
+
 # Keyword patterns (same as server.py, extracted here for reuse)
 _ROUTE_PATTERNS: dict[str, list[re.Pattern]] = {
     "gemini": [
@@ -333,8 +334,10 @@ def benchmark_scores(
 
         if prov not in provider_data:
             provider_data[prov] = {
-                "total": 0, "success": 0,
-                "kw_sum": 0.0, "kw_count": 0,
+                "total": 0,
+                "success": 0,
+                "kw_sum": 0.0,
+                "kw_count": 0,
             }
 
         pd = provider_data[prov]
@@ -433,8 +436,8 @@ def smart_route(
             weight_bench = 0.15 if has_bench else 0.0
             weight_fb = 0.15 if has_feedback else 0.0
             # Redistribute missing weight to keyword
-            miss = (0.15 if not has_bench else 0.0)
-            miss += (0.15 if not has_feedback else 0.0)
+            miss = 0.15 if not has_bench else 0.0
+            miss += 0.15 if not has_feedback else 0.0
             weight_kw += miss
         else:
             # Minimal data — keyword-heavy
@@ -442,8 +445,8 @@ def smart_route(
             weight_hist = 0.0
             weight_bench = 0.20 if has_bench else 0.0
             weight_fb = 0.20 if has_feedback else 0.0
-            miss = (0.20 if not has_bench else 0.0)
-            miss += (0.20 if not has_feedback else 0.0)
+            miss = 0.20 if not has_bench else 0.0
+            miss += 0.20 if not has_feedback else 0.0
             weight_kw += miss
 
         hs.composite = (

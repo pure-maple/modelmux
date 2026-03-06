@@ -99,9 +99,7 @@ def export_markdown(
         if costs and costs.get("entries_with_usage", 0) > 0:
             lines.append("## Cost Summary")
             lines.append("")
-            lines.append(
-                f"- **Total cost**: ${costs.get('total_cost_usd', 0):.4f}"
-            )
+            lines.append(f"- **Total cost**: ${costs.get('total_cost_usd', 0):.4f}")
             lines.append(
                 f"- **Total tokens**: "
                 f"{costs.get('total_input_tokens', 0):,} in / "

@@ -127,7 +127,8 @@ def _ensure_custom_providers_loaded() -> None:
             except Exception:
                 logger.warning(
                     "Failed to load custom providers from %s",
-                    cfg_file, exc_info=True,
+                    cfg_file,
+                    exc_info=True,
                 )
 
 
@@ -174,12 +175,22 @@ def _provider_health_summary() -> dict[str, dict]:
     result: dict[str, dict] = {}
     for prov, ps in providers.items():
         ago = round(now - ps["last_ts"]) if ps["last_ts"] else 0
-        avg_lat = round(
-            sum(ps["durations"]) / len(ps["durations"]), 1,
-        ) if ps["durations"] else 0
-        rate = round(
-            ps["success"] / ps["total"] * 100, 1,
-        ) if ps["total"] else 0
+        avg_lat = (
+            round(
+                sum(ps["durations"]) / len(ps["durations"]),
+                1,
+            )
+            if ps["durations"]
+            else 0
+        )
+        rate = (
+            round(
+                ps["success"] / ps["total"] * 100,
+                1,
+            )
+            if ps["total"]
+            else 0
+        )
         result[prov] = {
             "last_used_ago": f"{ago}s ago" if ago < 3600 else f"{ago // 3600}h ago",
             "avg_latency": f"{avg_lat}s",
@@ -1049,7 +1060,8 @@ async def mux_workflow(
             except Exception:
                 logger.warning(
                     "Failed to load workflows from %s",
-                    cfg_file, exc_info=True,
+                    cfg_file,
+                    exc_info=True,
                 )
 
     all_workflows = {**BUILTIN_WORKFLOWS, **user_workflows}
@@ -1080,9 +1092,7 @@ async def mux_workflow(
     calls_day = count_recent(24.0)
     for step in wf.steps:
         step_provider = (
-            step.provider.split("/", 1)[0]
-            if "/" in step.provider
-            else step.provider
+            step.provider.split("/", 1)[0] if "/" in step.provider else step.provider
         )
         policy_result = check_policy(
             policy,
@@ -1297,9 +1307,11 @@ async def mux_check(ctx: Context, diagnose: str = "") -> str:
     from modelmux.feedback import _feedback_file
     from modelmux.routing import _BENCHMARK_FILE
 
-    available_providers = [p for p, info in status.items()
-                          if not p.startswith("_") and isinstance(info, dict)
-                          and info.get("available")]
+    available_providers = [
+        p
+        for p, info in status.items()
+        if not p.startswith("_") and isinstance(info, dict) and info.get("available")
+    ]
     status["_routing"] = {
         "version": "v4",
         "signals": ["keyword", "history", "benchmark", "feedback"],
@@ -1318,13 +1330,17 @@ async def mux_check(ctx: Context, diagnose: str = "") -> str:
             rule_match = ""
             if config.routing_rules:
                 rule_result = route_by_rules(
-                    diagnose, config.routing_rules, config.default_provider,
+                    diagnose,
+                    config.routing_rules,
+                    config.default_provider,
                 )
                 if rule_result and rule_result not in excluded:
                     rule_match = rule_result
 
             best, scores = smart_route(
-                diagnose, available_providers, excluded=list(excluded),
+                diagnose,
+                available_providers,
+                excluded=list(excluded),
             )
             category = classify_task(diagnose)
 
@@ -1429,6 +1445,7 @@ async def mux_collaborate(
     else:
         # Check pattern's default preferred_providers
         from modelmux.a2a.patterns import get_pattern as _get_pattern
+
         pat = _get_pattern(pattern)
         if pat:
             for role_spec in pat.roles.values():

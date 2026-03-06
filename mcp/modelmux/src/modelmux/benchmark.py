@@ -243,12 +243,8 @@ def _build_summary(results: list[BenchmarkResult]) -> dict:
 
     for ps in by_provider.values():
         if ps["total"] > 0:
-            ps["avg_duration"] = round(
-                ps["total_duration"] / ps["total"], 2
-            )
-            ps["success_rate"] = round(
-                ps["success"] / ps["total"] * 100, 1
-            )
+            ps["avg_duration"] = round(ps["total_duration"] / ps["total"], 2)
+            ps["success_rate"] = round(ps["success"] / ps["total"] * 100, 1)
         if ps["keyword_scores"]:
             ps["avg_keyword_score"] = round(
                 sum(ps["keyword_scores"]) / len(ps["keyword_scores"]), 2
