@@ -183,6 +183,38 @@ All results follow the canonical schema:
 }
 ```
 
+## Audit Logging & Policy Engine
+
+Every `collab_dispatch` call is logged to `~/.config/collab-hub/audit.jsonl` (JSONL format) for debugging, cost tracking, and rate limiting.
+
+### Policy Enforcement
+
+Create `~/.config/collab-hub/policy.json` to enforce security constraints:
+
+```json
+{
+  "allowed_providers": [],
+  "blocked_providers": ["gemini"],
+  "blocked_sandboxes": ["full"],
+  "max_timeout": 600,
+  "max_calls_per_hour": 30,
+  "max_calls_per_day": 200
+}
+```
+
+| Policy | Description |
+|--------|-------------|
+| `allowed_providers` | Whitelist (empty = all allowed) |
+| `blocked_providers` | Blacklist specific providers |
+| `blocked_sandboxes` | Block sandbox levels (e.g. `"full"`) |
+| `max_timeout` | Cap timeout seconds (0 = unlimited) |
+| `max_calls_per_hour` | Hourly rate limit (0 = unlimited) |
+| `max_calls_per_day` | Daily rate limit (0 = unlimited) |
+
+Blocked requests return `{"status": "blocked", "error": "Policy denied: ..."}`.
+
+`collab_check()` includes policy summary and audit stats in its output.
+
 ## Project Structure
 
 ```
@@ -195,6 +227,8 @@ multi-model-collab/
 │       ├── server.py           # MCP tools: collab_dispatch, collab_check
 │       ├── config.py           # User profiles, routing rules, config loading
 │       ├── detect.py           # Caller platform detection & auto-exclusion
+│       ├── audit.py            # JSONL audit logging & stats
+│       ├── policy.py           # Policy engine (rate limits, provider/sandbox rules)
 │       ├── cli.py              # Entry point
 │       └── adapters/
 │           ├── base.py         # Threaded subprocess, canonical schema

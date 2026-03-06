@@ -252,6 +252,38 @@ mkdir -p .gemini/skills/multi-model-collab
 cp SKILL.md .gemini/skills/multi-model-collab/SKILL.md
 ```
 
+## 审计日志与策略引擎
+
+每次 `collab_dispatch` 调用都会记录到 `~/.config/collab-hub/audit.jsonl`（JSONL 格式），用于调试、成本追踪和速率限制。
+
+### 策略引擎
+
+创建 `~/.config/collab-hub/policy.json` 来配置安全约束：
+
+```json
+{
+  "allowed_providers": [],
+  "blocked_providers": ["gemini"],
+  "blocked_sandboxes": ["full"],
+  "max_timeout": 600,
+  "max_calls_per_hour": 30,
+  "max_calls_per_day": 200
+}
+```
+
+| 策略字段 | 说明 |
+|---------|------|
+| `allowed_providers` | 白名单（空 = 全部允许） |
+| `blocked_providers` | 黑名单 |
+| `blocked_sandboxes` | 禁止的沙箱级别（如 `"full"`） |
+| `max_timeout` | 超时上限秒数（0 = 无限） |
+| `max_calls_per_hour` | 每小时速率限制（0 = 无限） |
+| `max_calls_per_day` | 每日速率限制（0 = 无限） |
+
+被策略拦截的请求返回 `{"status": "blocked", "error": "Policy denied: ..."}`。
+
+`collab_check()` 的输出现已包含策略摘要和审计统计信息。
+
 ## 输出格式
 
 所有结果遵循统一的标准化格式：
@@ -296,6 +328,8 @@ multi-model-collab/
 │       ├── server.py               # MCP 工具：collab_dispatch, collab_check
 │       ├── config.py               # 用户偏好、路由规则、配置加载
 │       ├── detect.py               # 调用方平台检测与自动排除
+│       ├── audit.py                # JSONL 审计日志与统计
+│       ├── policy.py               # 策略引擎（速率限制、提供方/沙箱规则）
 │       ├── cli.py                  # 入口
 │       └── adapters/               # 模型适配器
 │           ├── base.py             # 线程化子进程管理 + 标准化输出
@@ -303,7 +337,8 @@ multi-model-collab/
 │           ├── gemini.py           # stream-json 解析 + session_id
 │           └── claude.py           # 纯文本解析
 ├── mcp/collab-hub/tests/
-│   ├── test_detect.py              # 平台检测单元测试（15 项全通过）
+│   ├── test_detect.py              # 平台检测单元测试（15 项）
+│   ├── test_audit_policy.py        # 审计日志与策略引擎测试（11 项）
 │   └── test_e2e.py                 # 端到端测试
 ├── scripts/                        # 降级方案：基于 tmux 的 shell 脚本
 │   ├── session.sh                  # tmux 会话管理

@@ -36,6 +36,24 @@ From Claude Code → routes to Codex or Gemini (never back to Claude)
 From Codex CLI → routes to Claude or Gemini (never back to Codex)
 ```
 
+## Audit & Policy
+
+Every dispatch call is logged to `~/.config/collab-hub/audit.jsonl` for debugging and cost tracking.
+
+Policy enforcement via `~/.config/collab-hub/policy.json`:
+
+```json
+{
+  "blocked_providers": ["gemini"],
+  "blocked_sandboxes": ["full"],
+  "max_timeout": 600,
+  "max_calls_per_hour": 30,
+  "max_calls_per_day": 200
+}
+```
+
+`collab_check()` now shows policy summary and audit stats.
+
 ## User Configuration
 
 Create `.collab-hub/profiles.toml` or `~/.config/collab-hub/profiles.toml`:
