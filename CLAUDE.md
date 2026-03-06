@@ -29,6 +29,7 @@ MCP Client → modelmux (FastMCP server, stdio)
   ├── mux_broadcast    → parallel multi-provider dispatch (provider/model syntax)
   ├── mux_collaborate  → A2A iterative multi-agent collaboration
   ├── mux_workflow     → multi-step pipeline orchestration
+  ├── mux_feedback     → user quality ratings for routing improvement
   ├── mux_history      → query result history & analytics (costs)
   └── mux_check        → availability & config status
       │
@@ -73,7 +74,8 @@ Web Dashboard (modelmux dashboard --port 41521)
 | `a2a/http_server.py` | A2A HTTP transport (JSON-RPC 2.0 + SSE) |
 | `a2a/client.py` | A2A client for connecting to external agents |
 | `adapters/a2a_remote.py` | Remote A2A agent as standard adapter |
-| `routing.py` | Smart routing v3 (keyword + history + benchmark quality) |
+| `routing.py` | Smart routing v4 (keyword + history + benchmark + feedback) |
+| `feedback.py` | User feedback collection and scoring for routing |
 | `config.py` | Profile loading, routing rules |
 | `detect.py` | Caller platform detection |
 | `audit.py` | JSONL audit log (policy rate-limiting) |

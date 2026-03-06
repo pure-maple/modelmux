@@ -1,9 +1,10 @@
-"""Smart routing v3 — keyword patterns + history + benchmark quality scoring.
+"""Smart routing v4 — keyword + history + benchmark + user feedback.
 
-Three-signal routing:
+Four-signal routing:
   1. Keyword patterns: match task text against provider-specific patterns
   2. History performance: success rate + latency from dispatch history
   3. Benchmark quality: per-category quality scores from benchmark results
+  4. User feedback: aggregated user ratings from feedback.jsonl
 
 Task classification maps incoming prompts to benchmark categories
 (analysis, generation, reasoning, language) for category-aware routing.
@@ -80,10 +81,11 @@ _CATEGORY_PATTERNS: dict[str, re.Pattern] = {
     ),
 }
 
-# Weight for combining keyword, history, and benchmark scores
-KEYWORD_WEIGHT = 0.4
-HISTORY_WEIGHT = 0.3
-BENCHMARK_WEIGHT = 0.3
+# Weight for combining keyword, history, benchmark, and feedback scores
+KEYWORD_WEIGHT = 0.35
+HISTORY_WEIGHT = 0.25
+BENCHMARK_WEIGHT = 0.20
+FEEDBACK_WEIGHT = 0.20
 
 # How many hours of history to consider
 HISTORY_WINDOW_HOURS = 72
@@ -101,7 +103,9 @@ class ProviderScore:
     success_rate: float = 0.5  # default neutral
     latency_score: float = 0.5  # default neutral
     benchmark_score: float = 0.5  # default neutral
+    feedback_score: float = 0.5  # default neutral
     history_calls: int = 0
+    feedback_count: int = 0
     task_category: str = ""
     composite: float = 0.0
 
@@ -338,40 +342,59 @@ def smart_route(
     # 3. Benchmark quality scoring (category-aware)
     bench_scores = benchmark_scores(candidates, category=category)
 
-    # 4. Composite — three-signal blend
+    # 4. User feedback scoring (category-aware)
+    from modelmux.feedback import feedback_scores as _feedback_scores
+
+    fb_scores = _feedback_scores(candidates, category=category)
+
+    # 5. Composite — four-signal blend
     for prov in candidates:
         hs = hist_scores[prov]
         hs.keyword_score = kw_scores.get(prov, 0.0)
         hs.benchmark_score = bench_scores.get(prov, 0.5)
+        hs.feedback_score = fb_scores.get(prov, 0.5)
         hs.task_category = category
 
         # History component: blend success rate (70%) and latency (30%)
         history_component = hs.success_rate * 0.7 + hs.latency_score * 0.3
 
-        # Adaptive weights based on data availability
+        # Check data availability for adaptive weighting
         has_bench = bench_scores.get(prov, 0.5) != 0.5
-        if hs.history_calls >= 5 and has_bench:
-            # Full three-signal: keyword 40%, history 30%, benchmark 30%
+        has_feedback = fb_scores.get(prov, 0.5) != 0.5
+
+        if hs.history_calls >= 5 and has_bench and has_feedback:
+            # Full four-signal: keyword 35%, history 25%, benchmark 20%, feedback 20%
             weight_kw = KEYWORD_WEIGHT
             weight_hist = HISTORY_WEIGHT
             weight_bench = BENCHMARK_WEIGHT
+            weight_fb = FEEDBACK_WEIGHT
+        elif hs.history_calls >= 5 and has_bench:
+            # Three-signal (no feedback)
+            weight_kw = 0.40
+            weight_hist = 0.30
+            weight_bench = 0.30
+            weight_fb = 0.0
         elif hs.history_calls >= 2:
-            # History but maybe no benchmark
-            weight_kw = 0.5
-            weight_hist = 0.3
-            weight_bench = 0.2 if has_bench else 0.0
-            weight_kw += 0.0 if has_bench else 0.2
+            # History available, other signals partial
+            weight_kw = 0.45
+            weight_hist = 0.25
+            weight_bench = 0.15 if has_bench else 0.0
+            weight_fb = 0.15 if has_feedback else 0.0
+            # Redistribute missing weight to keyword
+            weight_kw += (0.15 if not has_bench else 0.0) + (0.15 if not has_feedback else 0.0)
         else:
-            # No history
-            weight_kw = 0.7 if not has_bench else 0.5
+            # Minimal data — keyword-heavy
+            weight_kw = 0.60
             weight_hist = 0.0
-            weight_bench = 0.3 if has_bench else 0.0
-            weight_kw += 0.0 if has_bench else 0.3
+            weight_bench = 0.20 if has_bench else 0.0
+            weight_fb = 0.20 if has_feedback else 0.0
+            weight_kw += (0.20 if not has_bench else 0.0) + (0.20 if not has_feedback else 0.0)
 
         hs.composite = (
             hs.keyword_score * weight_kw
             + history_component * weight_hist
             + hs.benchmark_score * weight_bench
+            + hs.feedback_score * weight_fb
         )
 
     best = max(candidates, key=lambda p: hist_scores[p].composite)

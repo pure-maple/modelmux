@@ -859,6 +859,92 @@ async def mux_history(
 
 
 @mcp.tool()
+async def mux_feedback(
+    run_id: str,
+    rating: int,
+    ctx: Context,
+    provider: str = "",
+    comment: str = "",
+    list_recent: bool = False,
+) -> str:
+    """Submit feedback on a dispatch result to improve routing quality.
+
+    User ratings are aggregated to automatically adjust provider routing
+    preferences. Higher-rated providers get routed to more often.
+
+    Args:
+        run_id: The run_id from a dispatch result (from mux_dispatch output).
+        rating: Quality rating 1-5 (1=terrible, 3=ok, 5=excellent).
+        provider: Provider name (auto-detected from run_id if omitted).
+        comment: Optional text feedback.
+        list_recent: If True, show recent feedback entries instead of submitting.
+    """
+    from modelmux.feedback import log_feedback, read_feedback
+    from modelmux.routing import classify_task
+
+    if list_recent:
+        entries = read_feedback(hours=168)  # last week
+        return json.dumps(
+            {"count": len(entries), "entries": entries[-20:]},
+            indent=2,
+            ensure_ascii=False,
+        )
+
+    if not 1 <= rating <= 5:
+        return json.dumps(
+            {"status": "error", "error": "Rating must be 1-5"},
+            indent=2,
+        )
+
+    # Try to auto-detect provider from history if not provided
+    if not provider:
+        entries = read_history(HistoryQuery(limit=50))
+        for entry in entries:
+            if entry.get("run_id") == run_id:
+                provider = entry.get("provider", "")
+                break
+
+    if not provider:
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "Could not determine provider. Please specify provider explicitly.",
+            },
+            indent=2,
+        )
+
+    # Classify the original task if we can find it
+    category = ""
+    entries = read_history(HistoryQuery(limit=50))
+    for entry in entries:
+        if entry.get("run_id") == run_id:
+            task_text = entry.get("task", "")
+            if task_text:
+                category = classify_task(task_text)
+            break
+
+    log_feedback(
+        run_id=run_id,
+        provider=provider,
+        rating=rating,
+        category=category,
+        comment=comment,
+    )
+
+    await ctx.info(f"Feedback recorded: {provider} rated {rating}/5")
+    return json.dumps(
+        {
+            "status": "success",
+            "run_id": run_id,
+            "provider": provider,
+            "rating": rating,
+            "category": category or "(unclassified)",
+        },
+        indent=2,
+    )
+
+
+@mcp.tool()
 async def mux_workflow(
     workflow: str,
     task: str,
@@ -1119,16 +1205,18 @@ async def mux_check(ctx: Context) -> str:
     # Audit summary
     status["_audit"] = get_audit_stats()
 
-    # Routing v3 diagnostics
+    # Routing v4 diagnostics
+    from modelmux.feedback import _feedback_file
     from modelmux.routing import _BENCHMARK_FILE
 
     available_providers = [p for p, info in status.items()
                           if not p.startswith("_") and isinstance(info, dict)
                           and info.get("available")]
     status["_routing"] = {
-        "version": "v3",
-        "signals": ["keyword", "history", "benchmark"],
+        "version": "v4",
+        "signals": ["keyword", "history", "benchmark", "feedback"],
         "benchmark_data": _BENCHMARK_FILE.exists(),
+        "feedback_data": _feedback_file().exists(),
         "available_for_routing": available_providers,
     }
 
