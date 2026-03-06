@@ -66,15 +66,15 @@ cd multi-model-collab
 
 ```bash
 # Claude Code
-claude mcp add collab-hub -s user -- uvx --from ./mcp/collab-hub collab-hub
+claude mcp add collab-hub -s user -- uvx collab-hub
 
 # Codex CLI (~/.codex/config.toml)
 [mcp_servers.collab-hub]
 command = "uvx"
-args = ["--from", "/path/to/mcp/collab-hub", "collab-hub"]
+args = ["collab-hub"]
 
 # Gemini CLI (~/.gemini/settings.json)
-{"mcpServers": {"collab-hub": {"command": "uvx", "args": ["--from", "/path/to/mcp/collab-hub", "collab-hub"]}}}
+{"mcpServers": {"collab-hub": {"command": "uvx", "args": ["collab-hub"]}}}
 ```
 
 ## Usage

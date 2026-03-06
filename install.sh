@@ -9,11 +9,15 @@
 #   ./install.sh --all              # Install for all platforms
 #   ./install.sh --check            # Check prerequisites only
 #   ./install.sh --uninstall        # Remove MCP server registration
+#   ./install.sh --local            # Use local source instead of PyPI
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HUB_DIR="${SCRIPT_DIR}/mcp/collab-hub"
+USE_LOCAL=false
+# uvx source: PyPI by default, local with --local flag
+UVX_SRC="collab-hub"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -84,8 +88,13 @@ check_prerequisites() {
 
 install_claude() {
     info "Installing collab-hub for Claude Code..."
-    claude mcp add collab-hub -s user --transport stdio -- \
-        uvx --from "${HUB_DIR}" collab-hub
+    if [ "$USE_LOCAL" = true ]; then
+        claude mcp add collab-hub -s user --transport stdio -- \
+            uvx --from "${HUB_DIR}" collab-hub
+    else
+        claude mcp add collab-hub -s user --transport stdio -- \
+            uvx collab-hub
+    fi
     info "Claude Code: collab-hub registered (user scope)"
     echo ""
     echo "  Optional: auto-approve tool calls by adding to ~/.claude/settings.json:"
@@ -107,11 +116,16 @@ install_codex() {
     fi
 
     # Append MCP server config
+    if [ "$USE_LOCAL" = true ]; then
+        local uvx_args='["--from", "'"${HUB_DIR}"'", "collab-hub"]'
+    else
+        local uvx_args='["collab-hub"]'
+    fi
     cat >> "${config_file}" <<TOML
 
 [mcp_servers.collab-hub]
 command = "uvx"
-args = ["--from", "${HUB_DIR}", "collab-hub"]
+args = ${uvx_args}
 required = false
 enabled_tools = ["collab_dispatch", "collab_check"]
 tool_timeout_sec = 600
@@ -129,50 +143,37 @@ install_gemini() {
 
     mkdir -p "${config_dir}"
 
-    if [ -f "${config_file}" ]; then
-        # Check if already configured
-        if python3 -c "
-import json, sys
-d = json.load(open('${config_file}'))
-if 'collab-hub' in d.get('mcpServers', {}):
-    sys.exit(0)
-sys.exit(1)
-" 2>/dev/null; then
-            warn "collab-hub already configured in ${config_file}"
-            return
-        fi
+    # Build args JSON based on local/PyPI mode
+    local args_json
+    if [ "$USE_LOCAL" = true ]; then
+        args_json="[\"--from\", \"${HUB_DIR}\", \"collab-hub\"]"
+    else
+        args_json="[\"collab-hub\"]"
+    fi
 
-        # Merge into existing config
-        python3 -c "
-import json
-with open('${config_file}', 'r') as f:
-    config = json.load(f)
+    COLLAB_ARGS_JSON="$args_json" python3 -c "
+import json, os, sys
+
+config_file = '${config_file}'
+args = json.loads(os.environ['COLLAB_ARGS_JSON'])
+
+config = {}
+if os.path.isfile(config_file):
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+    if 'collab-hub' in config.get('mcpServers', {}):
+        print('[!] collab-hub already configured in ' + config_file)
+        sys.exit(0)
+
 config.setdefault('mcpServers', {})
 config['mcpServers']['collab-hub'] = {
     'command': 'uvx',
-    'args': ['--from', '${HUB_DIR}', 'collab-hub'],
+    'args': args,
     'timeout': 30000
 }
-with open('${config_file}', 'w') as f:
+with open(config_file, 'w') as f:
     json.dump(config, f, indent=2)
 "
-    else
-        # Create new config
-        python3 -c "
-import json
-config = {
-    'mcpServers': {
-        'collab-hub': {
-            'command': 'uvx',
-            'args': ['--from', '${HUB_DIR}', 'collab-hub'],
-            'timeout': 30000
-        }
-    }
-}
-with open('${config_file}', 'w') as f:
-    json.dump(config, f, indent=2)
-"
-    fi
 
     info "Gemini CLI: collab-hub added to ${config_file}"
 }
@@ -217,10 +218,11 @@ while [[ $# -gt 0 ]]; do
         --codex)     PLATFORMS+=("codex"); shift ;;
         --gemini)    PLATFORMS+=("gemini"); shift ;;
         --all)       PLATFORMS=("claude" "codex" "gemini"); shift ;;
+        --local)     USE_LOCAL=true; shift ;;
         --check)     ACTION="check"; shift ;;
         --uninstall) ACTION="uninstall"; shift ;;
         -h|--help)
-            echo "Usage: install.sh [--claude] [--codex] [--gemini] [--all] [--check] [--uninstall]"
+            echo "Usage: install.sh [--claude] [--codex] [--gemini] [--all] [--local] [--check] [--uninstall]"
             exit 0 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac

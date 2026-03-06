@@ -4,15 +4,46 @@ build-backend = "hatchling.build"
 
 [project]
 name = "collab-hub"
-version = "0.1.0"
+version = "0.2.0"
 description = "Unified MCP server for cross-platform multi-model AI collaboration"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
+authors = [
+    { name = "pure-maple" },
+]
+keywords = [
+    "mcp",
+    "ai",
+    "collaboration",
+    "multi-model",
+    "codex",
+    "gemini",
+    "claude",
+    "cli",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "mcp[cli]>=1.20.0",
     "pydantic>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/pure-maple/multi-model-collab"
+Repository = "https://github.com/pure-maple/multi-model-collab"
+Issues = "https://github.com/pure-maple/multi-model-collab/issues"
+Documentation = "https://github.com/pure-maple/multi-model-collab#readme"
 
 [project.scripts]
 collab-hub = "collab_hub.cli:main"
