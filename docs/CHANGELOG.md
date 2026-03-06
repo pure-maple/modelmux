@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.27.0 (unreleased)
+
+### New Features
+- **`modelmux dispatch` CLI subcommand**: Run a single task from the command line with JSON output, smart routing, model override, and configurable timeout/sandbox
+- **GitHub Actions composite action**: Reusable `.github/actions/review/` for automated PR code review using `modelmux dispatch`
+
+### Improvements
+- **Routing data TTL cache**: 60-second in-memory cache for history/benchmark/feedback data sources, with automatic invalidation on writes
+- **Provider health in `mux_check`**: Shows `last_used_ago`, `avg_latency`, `success_rate` per provider from last 24h history
+- **Config validation**: Warns on unknown top-level keys in profiles.toml/json (catches typos)
+- **Routing v4 test coverage**: Four-signal weight path tests (coverage 90% → 93%)
+
+### Stats
+- 441 tests passing (+24 new: 6 dispatch CLI + 9 config + 6 cache + 3 routing weight paths)
+
 ## v0.26.1 (2026-03-07)
 
 ### Quality & Observability

@@ -3,6 +3,7 @@
 Usage:
   modelmux              Start the MCP server (stdio transport)
   modelmux a2a-server   Start the A2A HTTP server
+  modelmux dispatch     Run a single task via a provider (JSON output)
   modelmux init         Interactive configuration wizard
   modelmux config       TUI configuration panel (requires modelmux[tui])
   modelmux check        Quick CLI availability check
@@ -365,6 +366,80 @@ def _cmd_a2a_server(args: argparse.Namespace) -> None:
     server.run()
 
 
+def _cmd_dispatch(args: argparse.Namespace) -> None:
+    """Run a single dispatch from the CLI and print JSON result."""
+    import asyncio
+    import json
+
+    from modelmux.adapters import get_all_adapters
+    from modelmux.adapters.base import BaseAdapter
+    from modelmux.routing import smart_route
+
+    provider = getattr(args, "provider", "auto")
+    model = getattr(args, "model", "")
+    sandbox = getattr(args, "sandbox", "read-only")
+    timeout = getattr(args, "timeout", 300)
+    workdir = getattr(args, "workdir", ".")
+    task_parts = getattr(args, "task", [])
+
+    # Task from positional args or stdin
+    if task_parts:
+        task = " ".join(task_parts)
+    else:
+        task = sys.stdin.read().strip()
+
+    if not task:
+        print(
+            json.dumps({"status": "error", "error": "No task provided"}),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Find available providers
+    all_adapters = get_all_adapters()
+    available: list[str] = []
+    for name, cls_or_inst in all_adapters.items():
+        adapter = cls_or_inst if isinstance(cls_or_inst, BaseAdapter) else cls_or_inst()
+        if adapter.check_available():
+            available.append(name)
+
+    if not available:
+        print(
+            json.dumps({"status": "error", "error": "No providers available"}),
+        )
+        sys.exit(1)
+
+    # Resolve provider
+    if provider == "auto":
+        provider, _ = smart_route(task, available)
+    if provider not in available:
+        provider = available[0]
+
+    # Get adapter instance
+    cls_or_inst = all_adapters[provider]
+    adapter = cls_or_inst if isinstance(cls_or_inst, BaseAdapter) else cls_or_inst()
+
+    extra: dict = {}
+    if model:
+        extra["model"] = model
+
+    result = asyncio.run(
+        adapter.run(
+            prompt=task,
+            workdir=workdir,
+            sandbox=sandbox,
+            timeout=timeout,
+            extra_args=extra if extra else None,
+        )
+    )
+
+    output = json.dumps(result.to_dict(), ensure_ascii=False)
+    print(output)
+
+    if result.status != "success":
+        sys.exit(1)
+
+
 def _cmd_version() -> None:
     from modelmux import __version__
 
@@ -497,6 +572,42 @@ def main() -> None:
     )
     dash_p.add_argument("--port", type=int, default=41521, help="Port (default: 41521)")
 
+    # modelmux dispatch
+    disp_p = subparsers.add_parser(
+        "dispatch", help="Run a single task via a provider (JSON output)"
+    )
+    disp_p.add_argument(
+        "--provider",
+        "-p",
+        default="auto",
+        help="Provider to use (default: auto = smart routing)",
+    )
+    disp_p.add_argument("--model", "-m", default="", help="Specific model override")
+    disp_p.add_argument(
+        "--sandbox",
+        choices=["read-only", "write", "full"],
+        default="read-only",
+        help="Sandbox level (default: read-only)",
+    )
+    disp_p.add_argument(
+        "--timeout",
+        "-t",
+        type=int,
+        default=300,
+        help="Timeout in seconds (default: 300)",
+    )
+    disp_p.add_argument(
+        "--workdir",
+        "-w",
+        default=".",
+        help="Working directory (default: current dir)",
+    )
+    disp_p.add_argument(
+        "task",
+        nargs="*",
+        help="Task prompt (reads from stdin if omitted)",
+    )
+
     # modelmux version
     subparsers.add_parser("version", help="Show version")
 
@@ -522,6 +633,8 @@ def main() -> None:
         _cmd_export(args)
     elif args.command == "dashboard":
         _cmd_dashboard(args)
+    elif args.command == "dispatch":
+        _cmd_dispatch(args)
     elif args.command == "version":
         _cmd_version()
     else:

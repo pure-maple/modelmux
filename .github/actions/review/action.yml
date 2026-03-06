@@ -1,0 +1,142 @@
+name: "modelmux Code Review"
+description: "Automated multi-model code review using modelmux"
+branding:
+  icon: "code"
+  color: "blue"
+
+inputs:
+  provider:
+    description: "Provider to use for review (codex, gemini, claude, dashscope, or auto)"
+    required: false
+    default: "auto"
+  model:
+    description: "Specific model to use (e.g., gpt-5.4, gemini-3.1-pro-preview)"
+    required: false
+    default: ""
+  prompt:
+    description: "Custom review prompt (default: standard code review)"
+    required: false
+    default: ""
+  max-diff-lines:
+    description: "Maximum diff lines to send for review (truncates large diffs)"
+    required: false
+    default: "500"
+  comment:
+    description: "Post review as PR comment (true/false)"
+    required: false
+    default: "true"
+  github-token:
+    description: "GitHub token for posting PR comments"
+    required: false
+    default: "${{ github.token }}"
+
+outputs:
+  review:
+    description: "The review output text"
+    value: ${{ steps.review.outputs.review }}
+  provider-used:
+    description: "The provider that performed the review"
+    value: ${{ steps.review.outputs.provider }}
+  status:
+    description: "Review status (success/error)"
+    value: ${{ steps.review.outputs.status }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install modelmux
+      shell: bash
+      run: pip install modelmux
+
+    - name: Get PR diff
+      id: diff
+      shell: bash
+      run: |
+        MAX_LINES=${{ inputs.max-diff-lines }}
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          DIFF=$(git diff ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} -- '*.py' '*.js' '*.ts' '*.go' '*.rs' '*.java' '*.rb' | head -n "$MAX_LINES")
+        else
+          DIFF=$(git diff HEAD~1 -- '*.py' '*.js' '*.ts' '*.go' '*.rs' '*.java' '*.rb' | head -n "$MAX_LINES")
+        fi
+        echo "$DIFF" > /tmp/modelmux-diff.txt
+        LINES=$(echo "$DIFF" | wc -l | tr -d ' ')
+        echo "lines=$LINES" >> "$GITHUB_OUTPUT"
+        if [ "$LINES" -lt 2 ]; then
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Run modelmux review
+      id: review
+      if: steps.diff.outputs.skip != 'true'
+      shell: bash
+      run: |
+        PROVIDER="${{ inputs.provider }}"
+        MODEL="${{ inputs.model }}"
+        CUSTOM_PROMPT="${{ inputs.prompt }}"
+        DIFF=$(cat /tmp/modelmux-diff.txt)
+
+        if [ -z "$CUSTOM_PROMPT" ]; then
+          REVIEW_PROMPT="Review this code diff for bugs, security issues, and improvements. Be concise and actionable. Focus on real problems, not style preferences.
+
+        \`\`\`diff
+        $DIFF
+        \`\`\`"
+        else
+          REVIEW_PROMPT="$CUSTOM_PROMPT
+
+        \`\`\`diff
+        $DIFF
+        \`\`\`"
+        fi
+
+        # Build modelmux dispatch command
+        DISPATCH_ARGS=(dispatch --provider "$PROVIDER" --sandbox read-only --timeout 300)
+        if [ -n "$MODEL" ]; then
+          DISPATCH_ARGS+=(--model "$MODEL")
+        fi
+
+        RESULT=$(echo "$REVIEW_PROMPT" | modelmux "${DISPATCH_ARGS[@]}" 2>&1) || true
+
+        # Parse JSON result
+        STATUS=$(echo "$RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('status','error'))" 2>/dev/null || echo "error")
+        OUTPUT=$(echo "$RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('output','Review failed'))" 2>/dev/null || echo "$RESULT")
+        PROV=$(echo "$RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('provider','unknown'))" 2>/dev/null || echo "unknown")
+
+        echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+        echo "provider=$PROV" >> "$GITHUB_OUTPUT"
+        {
+          echo "review<<MODELMUX_EOF"
+          echo "$OUTPUT"
+          echo "MODELMUX_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Post PR comment
+      if: inputs.comment == 'true' && github.event_name == 'pull_request' && steps.diff.outputs.skip != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        PROVIDER="${{ steps.review.outputs.provider }}"
+        STATUS="${{ steps.review.outputs.status }}"
+        REVIEW="${{ steps.review.outputs.review }}"
+        LINES="${{ steps.diff.outputs.lines }}"
+
+        BODY="## modelmux Code Review
+
+        **Provider**: \`${PROVIDER}\` | **Status**: \`${STATUS}\` | **Diff lines**: ${LINES}
+
+        ---
+
+        ${REVIEW}
+
+        ---
+        <sub>Automated review by <a href=\"https://github.com/pure-maple/modelmux\">modelmux</a></sub>"
+
+        gh pr comment ${{ github.event.pull_request.number }} --body "$BODY"
+
+    - name: Skip notice
+      if: steps.diff.outputs.skip == 'true'
+      shell: bash
+      run: echo "No code changes to review (diff is empty or too small)"
