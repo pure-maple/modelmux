@@ -146,13 +146,24 @@ class CodexAdapter(BaseAdapter):
         env_overrides: dict[str, str] | None = None,
         on_progress=None,
     ):
-        """Execute with ASCII workdir workaround for Codex UTF-8 bug."""
+        """Execute with ASCII workdir workaround for Codex UTF-8 bug.
+
+        When workdir contains non-ASCII chars, we create an ASCII symlink
+        and set PWD env var so that Node.js process.cwd() (which prefers
+        PWD over the OS-resolved getcwd()) reports the symlink path.
+        Without PWD, the OS resolves the symlink back to the original
+        non-ASCII path, defeating the workaround.
+        """
         ascii_link = ""
         actual_workdir = workdir
 
         if _needs_ascii_workaround(workdir):
             ascii_link = _create_ascii_symlink(workdir)
             actual_workdir = ascii_link
+            # Set PWD so Node.js process.cwd() uses the symlink path
+            # instead of the OS-resolved real path
+            env_overrides = dict(env_overrides) if env_overrides else {}
+            env_overrides["PWD"] = ascii_link
 
         try:
             return await super().run(

@@ -89,6 +89,35 @@ A2A HTTP Server (modelmux a2a-server)
 - **超时设置**: 深度研究任务超时可设为数小时甚至一天，不做严格限制
 - **代码审查**: 关键功能的代码审查可委托给 codex 和 gemini 共同完成
 
+### 后台并行执行（推荐）
+
+使用 Bash 工具的 `run_in_background` 参数可以让 codex/gemini 在后台执行，不阻塞 Claude Code 主线程。
+这是提升多模型协作效率的关键手段。
+
+**模式**: 发起后台任务 → 继续主线工作 → 后台完成时收到通知 → 读取结果
+
+```bash
+# 后台发起 Codex 代码审查（run_in_background=true）
+codex exec --json -- "Review this code for security issues: $(cat src/file.py)" \
+  > /tmp/codex-review.log 2>&1
+
+# 后台发起 Gemini 架构分析（run_in_background=true）
+gemini -p "Analyze the architecture of: $(cat CLAUDE.md)" \
+  > /tmp/gemini-analysis.log 2>&1
+```
+
+**适用场景**:
+- 代码审查：发起 codex/gemini 后台审查，自己继续编码
+- 调研任务：后台让多个模型并行调研不同方面
+- 测试验证：后台跑长时间测试，同时处理其他任务
+- 多模型对比：同时发起多个后台任务，汇总结果做决策
+
+**注意事项**:
+- 使用 `run_in_background=true` 参数而非 `&` 后缀，Claude Code 会在完成时通知
+- 输出重定向到 `/tmp/` 下的日志文件以便后续读取
+- 确保代码已保存到磁盘再发起审查（后台进程读取的是磁盘文件）
+- 后台任务不要依赖当前 session 的环境变量或状态
+
 ## Documentation & Knowledge Management
 
 **关键里程碑和调研成果必须持久化为文档**：
