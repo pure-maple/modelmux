@@ -1,12 +1,10 @@
 """Unified MCP server for multi-model AI collaboration.
 
-Exposes a single `collab_dispatch` tool that routes tasks to
-Codex CLI, Gemini CLI, or Claude Code CLI, returning results
-in a canonical schema.
+Exposes tools that route tasks to Codex CLI, Gemini CLI, or Claude Code CLI,
+returning results in a canonical schema. Supports user-defined profiles for
+third-party model configuration and custom routing rules.
 
 Architecture: One hub, multiple internal adapters.
-Consensus recommendation from Claude Opus 4.6, GPT-5.3-Codex,
-and Gemini-3.1-Pro-Preview architecture consultation.
 """
 
 from __future__ import annotations
@@ -19,6 +17,12 @@ from typing import Literal
 from mcp.server.fastmcp import FastMCP
 
 from collab_hub.adapters import ADAPTERS, BaseAdapter
+from collab_hub.config import (
+    CollabConfig,
+    get_active_profile,
+    load_config,
+    route_by_rules,
+)
 
 mcp = FastMCP(
     "collab-hub",
@@ -26,14 +30,15 @@ mcp = FastMCP(
         "Multi-model AI collaboration hub. Use collab_dispatch to send "
         "tasks to different AI models (codex, gemini, claude) and receive "
         "structured results. Use provider='auto' for smart routing. "
-        "Supports session continuity for multi-turn conversations."
+        "Supports profiles for third-party model configuration and "
+        "session continuity for multi-turn conversations."
     ),
 )
 
 # Adapter instances (lazy-initialized)
 _adapter_cache: dict[str, BaseAdapter] = {}
 
-# Auto-routing keyword patterns
+# Built-in auto-routing keyword patterns (fallback when no custom rules)
 _ROUTE_PATTERNS: dict[str, list[re.Pattern]] = {
     "gemini": [
         re.compile(r"\b(frontend|ui|ux|css|html|react|vue|svelte|angular|tailwind|"
@@ -56,12 +61,8 @@ _ROUTE_PATTERNS: dict[str, list[re.Pattern]] = {
 }
 
 
-def _auto_route(task: str) -> str:
-    """Pick the best provider based on task keywords.
-
-    Returns the provider with the most keyword matches.
-    Falls back to 'codex' as the most general-purpose option.
-    """
+def _builtin_auto_route(task: str) -> str:
+    """Built-in keyword routing (fallback when no custom rules)."""
     scores: dict[str, int] = {}
     for provider, patterns in _ROUTE_PATTERNS.items():
         score = sum(len(p.findall(task)) for p in patterns)
@@ -69,9 +70,20 @@ def _auto_route(task: str) -> str:
 
     best = max(scores, key=lambda k: scores[k])
     if scores[best] == 0:
-        # No keyword matches — default to codex (most general)
         return "codex"
     return best
+
+
+def _auto_route(task: str, config: CollabConfig) -> str:
+    """Route using custom rules first, then built-in patterns as fallback."""
+    if config.routing_rules:
+        result = route_by_rules(
+            task, config.routing_rules, config.default_provider
+        )
+        if result:
+            return result
+
+    return _builtin_auto_route(task)
 
 
 def _get_adapter(provider: str) -> BaseAdapter:
@@ -101,9 +113,9 @@ async def collab_dispatch(
     """Dispatch a task to an AI model CLI and return the result.
 
     Args:
-        provider: Which model to use — "auto" (smart routing based on task),
-            "codex" (code generation, algorithms, debugging), "gemini"
-            (frontend, design, multimodal), or "claude" (architecture,
+        provider: Which model to use — "auto" (smart routing based on task
+            and user config), "codex" (code generation, algorithms, debugging),
+            "gemini" (frontend, design, multimodal), or "claude" (architecture,
             reasoning, review).
         task: The task description / prompt to send to the model.
         workdir: Working directory for the model to operate in.
@@ -114,24 +126,35 @@ async def collab_dispatch(
         timeout: Maximum seconds to wait (default 300).
         model: Override the specific model version (e.g., "gpt-5.4",
             "gemini-2.5-pro", "claude-sonnet-4-6"). If empty, uses
-            the CLI's default model from its own config.
-        profile: Codex config profile name from ~/.codex/config.toml
-            (e.g., "fast", "deep"). Only applies to provider="codex".
+            the CLI's default or the active profile's model setting.
+        profile: Named profile from user config (e.g., "budget", "china").
+            Overrides active_profile from config file. Controls which
+            model/provider/base_url to use for each CLI.
         reasoning_effort: Codex reasoning effort level — "low", "medium",
             "high", "xhigh". Only applies to provider="codex".
     """
+    # Load user configuration
+    resolved_workdir = str(Path(workdir).resolve())
+    config = load_config(resolved_workdir)
+
+    # Determine which profile to use
+    profile_name = profile or config.active_profile
+    active_prof = config.profiles.get(profile_name)
+
     # Auto-route if needed
     actual_provider = provider
     if provider == "auto":
-        actual_provider = _auto_route(task)
-
-    # Resolve workdir to absolute path
-    resolved_workdir = str(Path(workdir).resolve())
+        actual_provider = _auto_route(task, config)
+        # Skip disabled providers
+        if actual_provider in config.disabled_providers:
+            for alt in ["codex", "gemini", "claude"]:
+                if alt != actual_provider and alt not in config.disabled_providers:
+                    actual_provider = alt
+                    break
 
     adapter = _get_adapter(actual_provider)
 
     if not adapter.check_available():
-        # If auto-routed provider unavailable, try fallback
         if provider == "auto":
             for fallback in ["codex", "gemini", "claude"]:
                 if fallback != actual_provider:
@@ -158,10 +181,24 @@ async def collab_dispatch(
                 ),
             }, indent=2)
 
+    # Build extra_args from explicit params + profile
     extra_args: dict = {}
+    env_overrides: dict[str, str] = {}
+
+    # Apply profile settings
+    if active_prof:
+        provider_conf = active_prof.providers.get(actual_provider)
+        if provider_conf:
+            if provider_conf.model and not model:
+                extra_args["model"] = provider_conf.model
+            if provider_conf.wire_api:
+                extra_args["wire_api"] = provider_conf.wire_api
+            env_overrides = provider_conf.to_env_overrides(actual_provider)
+
+    # Explicit params override profile
     if model:
         extra_args["model"] = model
-    if profile:
+    if profile and actual_provider == "codex":
         extra_args["profile"] = profile
     if reasoning_effort:
         extra_args["reasoning_effort"] = reasoning_effort
@@ -173,26 +210,39 @@ async def collab_dispatch(
         session_id=session_id,
         timeout=timeout,
         extra_args=extra_args if extra_args else None,
+        env_overrides=env_overrides if env_overrides else None,
     )
 
     result_dict = result.to_dict()
     if provider == "auto":
         result_dict["routed_from"] = "auto"
+    if profile_name != "default" and active_prof:
+        result_dict["profile"] = profile_name
     return json.dumps(result_dict, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
 async def collab_check() -> str:
-    """Check which model CLIs are available on this system.
+    """Check which model CLIs are available and show active configuration.
 
-    Returns availability status for codex, gemini, and claude CLIs.
-    Useful for determining which providers can be used with collab_dispatch.
+    Returns availability status for codex, gemini, and claude CLIs,
+    plus the active profile name and available profiles.
     """
-    status = {}
+    config = load_config(".")
+
+    status: dict = {}
     for name, cls in ADAPTERS.items():
         adapter = cls()
         status[name] = {
             "available": adapter.check_available(),
             "binary": adapter._binary_name(),
         }
+
+    status["_config"] = {
+        "active_profile": config.active_profile,
+        "available_profiles": list(config.profiles.keys()) or ["default (built-in)"],
+        "custom_routing_rules": len(config.routing_rules),
+        "disabled_providers": config.disabled_providers,
+    }
+
     return json.dumps(status, indent=2)

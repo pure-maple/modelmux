@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
 import shutil
 import subprocess
@@ -55,7 +56,9 @@ def is_turn_completed(line: str) -> bool:
 
 
 def stream_subprocess(cmd: list[str], cwd: str | None = None,
-                      timeout: int = 300) -> Generator[str, None, int]:
+                      timeout: int = 300,
+                      env_overrides: dict[str, str] | None = None,
+                      ) -> Generator[str, None, int]:
     """Run a subprocess and yield stdout lines via a threaded queue.
 
     Returns the exit code via generator return value.
@@ -66,12 +69,18 @@ def stream_subprocess(cmd: list[str], cwd: str | None = None,
         raise FileNotFoundError(f"Command not found: {cmd[0]}")
     cmd[0] = resolved
 
+    proc_env = None
+    if env_overrides:
+        proc_env = os.environ.copy()
+        proc_env.update(env_overrides)
+
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         cwd=cwd,
+        env=proc_env,
         encoding="utf-8",
         errors="replace",
     )
@@ -146,7 +155,9 @@ class BaseAdapter:
                   sandbox: str = "read-only",
                   session_id: str = "",
                   timeout: int = 300,
-                  extra_args: dict | None = None) -> AdapterResult:
+                  extra_args: dict | None = None,
+                  env_overrides: dict[str, str] | None = None,
+                  ) -> AdapterResult:
         """Execute a task and return the canonical result."""
         run_id = str(uuid.uuid4())[:8]
         start = time.monotonic()
@@ -174,7 +185,7 @@ class BaseAdapter:
         lines: list[str] = []
         exit_code = 0
         try:
-            gen = stream_subprocess(cmd, cwd=workdir, timeout=timeout)
+            gen = stream_subprocess(cmd, cwd=workdir, timeout=timeout, env_overrides=env_overrides)
             for line in gen:
                 lines.append(line)
             # Get the return value (exit code) from the generator
