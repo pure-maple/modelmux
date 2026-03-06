@@ -606,6 +606,7 @@ async def mux_history(
     status: str = "",
     hours: float = 0,
     stats_only: bool = False,
+    costs: bool = False,
 ) -> str:
     """Query dispatch history and analytics.
 
@@ -618,9 +619,10 @@ async def mux_history(
         status: Filter by status ("success" or "error").
         hours: Only include entries from the last N hours (0 = all time).
         stats_only: Return aggregated statistics instead of individual entries.
+        costs: Include cost estimation breakdown (token usage + estimated USD).
     """
     if stats_only:
-        stats = get_history_stats(hours=hours)
+        stats = get_history_stats(hours=hours, include_costs=costs)
         return json.dumps(stats, indent=2)
 
     entries = read_history(
@@ -632,11 +634,14 @@ async def mux_history(
         )
     )
 
-    return json.dumps(
-        {"count": len(entries), "entries": entries},
-        indent=2,
-        ensure_ascii=False,
-    )
+    result: dict = {"count": len(entries), "entries": entries}
+
+    if costs:
+        from modelmux.costs import aggregate_costs
+
+        result["costs"] = aggregate_costs(entries)
+
+    return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()

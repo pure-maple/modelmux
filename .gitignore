@@ -21,5 +21,11 @@ Thumbs.db
 /tmp/
 *.log
 
+# Credentials
+.mcpregistry_*
+.env
+*.key
+*.pem
+
 # uv lock file (tool project, not pinning deps)
 uv.lock

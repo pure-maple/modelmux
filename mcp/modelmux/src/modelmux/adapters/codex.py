@@ -16,7 +16,7 @@ import os
 import re
 import tempfile
 
-from modelmux.adapters.base import BaseAdapter
+from modelmux.adapters.base import BaseAdapter, TokenUsage
 
 
 def _needs_ascii_workaround(path: str) -> bool:
@@ -134,6 +134,38 @@ class CodexAdapter(BaseAdapter):
         agent_text = "\n".join(agent_messages)
         error_text = "\n".join(errors)
         return agent_text, thread_id, error_text
+
+    def parse_token_usage(self, lines: list[str]) -> TokenUsage | None:
+        """Extract token usage from Codex turn.completed events.
+
+        The turn.completed JSONL event contains a usage field with
+        input_tokens, output_tokens, and total_tokens.
+        """
+        for line in reversed(lines):
+            try:
+                data = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            if data.get("type") != "turn.completed":
+                continue
+
+            usage = data.get("usage")
+            if not usage or not isinstance(usage, dict):
+                continue
+
+            input_t = usage.get("input_tokens", 0)
+            output_t = usage.get("output_tokens", 0)
+            total_t = usage.get("total_tokens", 0)
+            if not total_t:
+                total_t = input_t + output_t
+            if input_t or output_t or total_t:
+                return TokenUsage(
+                    input_tokens=input_t,
+                    output_tokens=output_t,
+                    total_tokens=total_t,
+                )
+        return None
 
     async def run(
         self,
