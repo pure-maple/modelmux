@@ -27,7 +27,9 @@ jobs:
         run: uv sync
 
       - name: Unit tests
-        run: uv run python tests/test_detect.py
+        run: |
+          uv run python tests/test_detect.py
+          uv run python tests/test_audit_policy.py
 
       - name: Import verification
         run: |
