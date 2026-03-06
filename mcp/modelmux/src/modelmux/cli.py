@@ -6,6 +6,7 @@ Usage:
   modelmux config    TUI configuration panel (requires modelmux[tui])
   modelmux check     Quick CLI availability check
   modelmux status    Monitor active dispatches in real-time
+  modelmux history   View dispatch history and statistics
   modelmux version   Show version
 """
 
@@ -116,6 +117,64 @@ def _cmd_status(args: argparse.Namespace) -> None:
         print()
 
 
+def _cmd_history(args: argparse.Namespace) -> None:
+    """Show dispatch history or stats."""
+    import time
+
+    from modelmux.history import HistoryQuery, get_history_stats, read_history
+
+    if getattr(args, "stats", False):
+        hours = getattr(args, "hours", 0)
+        stats = get_history_stats(hours=hours)
+        if not stats.get("total"):
+            print("  No history data.")
+            return
+
+        print("modelmux — History Statistics")
+        print("-" * 50)
+        print(f"  Total dispatches: {stats['total']}")
+        if stats.get("by_source"):
+            for src, cnt in stats["by_source"].items():
+                print(f"    {src}: {cnt}")
+        print()
+        for prov, ps in stats.get("by_provider", {}).items():
+            rate = ps.get("success_rate", 0)
+            avg = ps.get("avg_duration", 0)
+            print(
+                f"  {prov:8s}  "
+                f"{ps['calls']:3d} calls  "
+                f"{rate:5.1f}% success  "
+                f"avg {avg:.1f}s"
+            )
+        print()
+        return
+
+    limit = getattr(args, "limit", 10)
+    provider = getattr(args, "provider", "")
+    hours = getattr(args, "hours", 0)
+    entries = read_history(HistoryQuery(limit=limit, provider=provider, hours=hours))
+
+    if not entries:
+        print("  No history entries found.")
+        return
+
+    print("modelmux — Recent Dispatches")
+    print("-" * 60)
+    for entry in entries:
+        ts = entry.get("ts", 0)
+        ts_str = time.strftime("%m-%d %H:%M", time.localtime(ts)) if ts else "?"
+        prov = entry.get("provider", "?")
+        status = entry.get("status", "?")
+        dur = entry.get("duration_seconds", 0)
+        task = entry.get("task", "")[:50]
+        src = entry.get("source", "dispatch")
+
+        icon = "\033[0;32m+\033[0m" if status == "success" else "\033[1;31m!\033[0m"
+        tag = "[B]" if src == "broadcast" else ""
+        print(f"  {icon} {ts_str}  {prov:8s} {dur:5.1f}s  {tag}{task}")
+    print()
+
+
 def _cmd_version() -> None:
     from modelmux import __version__
 
@@ -159,6 +218,19 @@ def main() -> None:
         help="Live-refresh mode (updates every second)",
     )
 
+    # modelmux history
+    hist_p = subparsers.add_parser("history", help="View dispatch history and stats")
+    hist_p.add_argument(
+        "--stats", action="store_true", help="Show aggregated statistics"
+    )
+    hist_p.add_argument(
+        "-n", "--limit", type=int, default=10, help="Number of entries (default 10)"
+    )
+    hist_p.add_argument("--provider", default="", help="Filter by provider")
+    hist_p.add_argument(
+        "--hours", type=float, default=0, help="Only last N hours (0 = all)"
+    )
+
     # modelmux version
     subparsers.add_parser("version", help="Show version")
 
@@ -174,6 +246,8 @@ def main() -> None:
         _cmd_check()
     elif args.command == "status":
         _cmd_status(args)
+    elif args.command == "history":
+        _cmd_history(args)
     elif args.command == "version":
         _cmd_version()
     else:

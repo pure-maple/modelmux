@@ -26,6 +26,7 @@ from modelmux.config import (
     route_by_rules,
 )
 from modelmux.detect import CallerInfo, detect_caller, get_excluded_providers
+from modelmux.history import HistoryQuery, get_history_stats, log_result, read_history
 from modelmux.policy import check_policy, load_policy
 from modelmux.status import DispatchStatus, list_active, remove_status, write_status
 
@@ -398,6 +399,9 @@ async def mux_dispatch(
         )
     )
 
+    # History (full result)
+    log_result(result_dict, task=task, source="dispatch")
+
     return json.dumps(result_dict, indent=2, ensure_ascii=False)
 
 
@@ -532,17 +536,59 @@ async def mux_broadcast(
 
     results = await asyncio.gather(*[_run_one(p) for p in target_providers])
 
-    return json.dumps(
-        {
-            "broadcast": True,
-            "providers": target_providers,
-            "results": list(results),
-            "summary": {
-                "total": len(results),
-                "success": sum(1 for r in results if r["status"] == "success"),
-                "error": sum(1 for r in results if r["status"] != "success"),
-            },
+    broadcast_result = {
+        "broadcast": True,
+        "providers": target_providers,
+        "results": list(results),
+        "summary": {
+            "total": len(results),
+            "success": sum(1 for r in results if r["status"] == "success"),
+            "error": sum(1 for r in results if r["status"] != "success"),
         },
+    }
+
+    # History (full broadcast result)
+    log_result(broadcast_result, task=task, source="broadcast")
+
+    return json.dumps(broadcast_result, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def mux_history(
+    ctx: Context,
+    limit: int = 20,
+    provider: str = "",
+    status: str = "",
+    hours: float = 0,
+    stats_only: bool = False,
+) -> str:
+    """Query dispatch history and analytics.
+
+    Returns recent dispatch results with full output, or aggregated
+    statistics when stats_only=True.
+
+    Args:
+        limit: Max number of entries to return (default 20).
+        provider: Filter by provider name (e.g. "codex").
+        status: Filter by status ("success" or "error").
+        hours: Only include entries from the last N hours (0 = all time).
+        stats_only: Return aggregated statistics instead of individual entries.
+    """
+    if stats_only:
+        stats = get_history_stats(hours=hours)
+        return json.dumps(stats, indent=2)
+
+    entries = read_history(
+        HistoryQuery(
+            limit=limit,
+            provider=provider,
+            status=status,
+            hours=hours,
+        )
+    )
+
+    return json.dumps(
+        {"count": len(entries), "entries": entries},
         indent=2,
         ensure_ascii=False,
     )
