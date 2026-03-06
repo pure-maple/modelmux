@@ -24,7 +24,7 @@ claude mcp add modelmux -s user -- uvx modelmux
 ## Tools
 
 - **`mux_dispatch`** — Send a task to a model and get structured results
-  - `provider`: `"auto"` / `"codex"` / `"gemini"` / `"claude"`
+  - `provider`: `"auto"` / `"codex"` / `"gemini"` / `"claude"` / `"ollama"`
   - `task`: The prompt to send
   - `workdir`, `sandbox`, `session_id`, `timeout`, `model`, `profile`, `reasoning_effort`, `failover`
 - **`mux_check`** — Check which CLIs are available, show detected caller and config

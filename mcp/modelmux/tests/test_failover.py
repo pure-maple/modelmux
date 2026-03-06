@@ -27,18 +27,18 @@ def make_mock_ctx(client_name: str = "test-runner"):
 def test_fallback_candidates_basic():
     """Candidates should exclude current and excluded providers."""
     candidates = _get_fallback_candidates("codex", [])
-    assert candidates == ["gemini", "claude"]
+    assert candidates == ["gemini", "claude", "ollama"]
     print("[PASS] fallback candidates basic")
 
 
 def test_fallback_candidates_with_exclusions():
     candidates = _get_fallback_candidates("codex", ["claude"])
-    assert candidates == ["gemini"]
+    assert candidates == ["gemini", "ollama"]
     print("[PASS] fallback candidates with exclusions")
 
 
 def test_fallback_candidates_all_excluded():
-    candidates = _get_fallback_candidates("codex", ["gemini", "claude"])
+    candidates = _get_fallback_candidates("codex", ["gemini", "claude", "ollama"])
     assert candidates == []
     print("[PASS] fallback candidates all excluded")
 

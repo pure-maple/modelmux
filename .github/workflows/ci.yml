@@ -41,6 +41,7 @@ jobs:
           uv run python tests/test_detect.py
           uv run python tests/test_audit_policy.py
           uv run python tests/test_failover.py
+          uv run python tests/test_ollama.py
 
       - name: Import verification
         run: |

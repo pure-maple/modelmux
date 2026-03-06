@@ -161,13 +161,13 @@ def _get_fallback_candidates(
     priority: list[str] | None = None,
 ) -> list[str]:
     """Return available provider names to try as fallback, in order."""
-    order = priority or ["codex", "gemini", "claude"]
+    order = priority or ["codex", "gemini", "claude", "ollama"]
     return [p for p in order if p != current and p not in excluded]
 
 
 @mcp.tool()
 async def mux_dispatch(
-    provider: Literal["auto", "codex", "gemini", "claude"],
+    provider: Literal["auto", "codex", "gemini", "claude", "ollama"],
     task: str,
     ctx: Context,
     workdir: str = ".",
@@ -185,7 +185,9 @@ async def mux_dispatch(
         provider: Which model to use — "auto" (smart routing based on task
             and user config, auto-excludes the calling platform), "codex"
             (code generation, algorithms, debugging), "gemini" (frontend,
-            design, multimodal), or "claude" (architecture, reasoning, review).
+            design, multimodal), "claude" (architecture, reasoning, review),
+            or "ollama" (local models via Ollama — use model param to
+            specify which, e.g. "deepseek-r1", "llama3.2", "qwen2.5").
         task: The task description / prompt to send to the model.
         workdir: Working directory for the model to operate in.
         sandbox: Security level — "read-only" (default, safe), "write"

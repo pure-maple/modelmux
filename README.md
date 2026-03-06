@@ -27,7 +27,8 @@ Any MCP Client (Claude Code / Codex CLI / Gemini CLI / IDE)
             │
             ├── CodexAdapter  → codex exec --json
             ├── GeminiAdapter → gemini -p -o stream-json
-            └── ClaudeAdapter → claude -p
+            ├── ClaudeAdapter → claude -p
+            └── OllamaAdapter → ollama run <model>
 ```
 
 **3-level fallback:**
@@ -43,8 +44,9 @@ Any MCP Client (Claude Code / Codex CLI / Gemini CLI / IDE)
 - [uv](https://docs.astral.sh/uv/) package manager
 - At least one model CLI installed:
   - `codex` — `npm i -g @openai/codex`
-  - `gemini` — `npm i -g @anthropic/gemini-cli`
+  - `gemini` — `npm i -g @google/gemini-cli`
   - `claude` — [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+  - `ollama` — [Ollama](https://ollama.com) (local models: DeepSeek, Llama, Qwen, etc.)
 
 ### Install
 
