@@ -25,26 +25,36 @@ Model multiplexer — unified MCP server for cross-platform multi-model AI colla
 
 ```
 MCP Client → modelmux (FastMCP server, stdio)
-  ├── mux_dispatch     → single provider dispatch (auto-route, failover)
-  ├── mux_broadcast    → parallel multi-provider dispatch
+  ├── mux_dispatch     → single provider dispatch (auto-route, failover, auto_decompose)
+  ├── mux_broadcast    → parallel multi-provider dispatch (provider/model syntax)
   ├── mux_collaborate  → A2A iterative multi-agent collaboration
-  ├── mux_history      → query result history & analytics
+  ├── mux_workflow     → multi-step pipeline orchestration
+  ├── mux_history      → query result history & analytics (costs)
   └── mux_check        → availability & config status
       │
-      ├── CodexAdapter  → codex exec --json
-      ├── GeminiAdapter → gemini -p -o stream-json
-      ├── ClaudeAdapter → claude -p
-      ├── OllamaAdapter → ollama run <model>
+      ├── CodexAdapter     → codex exec --json
+      ├── GeminiAdapter    → gemini -p -o stream-json
+      ├── ClaudeAdapter    → claude -p
+      ├── OllamaAdapter    → ollama run <model>
+      ├── DashScopeAdapter → OpenAI-compatible API (coding.dashscope.aliyuncs.com)
       └── A2ARemoteAdapter → external A2A agents (via httpx)
 
 A2A HTTP Server (modelmux a2a-server)
   ├── GET  /.well-known/agent.json  → Agent Card
   ├── POST / (JSON-RPC 2.0)
-  │   ├── tasks/send          → synchronous task execution
+  │   ├── tasks/send          → synchronous (+ push notification)
   │   ├── tasks/get           → query task state
   │   ├── tasks/cancel        → cancel running task
-  │   └── tasks/sendSubscribe → SSE streaming
+  │   └── tasks/sendSubscribe → SSE streaming (+ push notification)
   └── TaskStore (in-memory + JSONL persistence)
+
+Web Dashboard (modelmux dashboard --port 41521)
+  ├── GET  /                → monitoring UI (auto-refresh)
+  ├── GET  /api/status      → active dispatches
+  ├── GET  /api/history     → dispatch history
+  ├── GET  /api/stats       → aggregated statistics
+  ├── GET  /api/providers   → provider availability
+  └── GET  /api/costs       → cost breakdown
 ```
 
 ## Key Files
@@ -53,7 +63,7 @@ A2A HTTP Server (modelmux a2a-server)
 |------|---------|
 | `server.py` | MCP tools (dispatch, broadcast, collaborate, history, check) |
 | `adapters/base.py` | Threaded subprocess runner, canonical result schema |
-| `adapters/{codex,gemini,claude,ollama}.py` | Provider-specific adapters |
+| `adapters/{codex,gemini,claude,ollama,dashscope}.py` | Provider-specific adapters |
 | `a2a/` | A2A protocol implementation |
 | `a2a/types.py` | Data model (Task, Message, Artifact, AgentCard) |
 | `a2a/context.py` | Layered memory (pinned facts + rolling summary + recent window) |
@@ -72,6 +82,11 @@ A2A HTTP Server (modelmux a2a-server)
 | `status.py` | Real-time dispatch status tracking |
 | `tui.py` | Textual TUI config panel |
 | `init_wizard.py` | Interactive setup wizard |
+| `decompose.py` | Task decomposition (DAG planner + wave executor + merger) |
+| `costs.py` | Token usage pricing and cost estimation |
+| `notifications.py` | Webhook notifications (Slack/Discord/generic) |
+| `dashboard.py` | Web dashboard (Starlette REST API + HTML UI) |
+| `benchmark.py` | Provider benchmark suite (standardized tasks + scoring) |
 | `cli.py` | CLI entry point with subcommands |
 
 ## Dev Workflow

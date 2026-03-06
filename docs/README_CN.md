@@ -211,6 +211,8 @@ mux_dispatch(provider="my-agent", task="审查这个 PR")
 ```bash
 modelmux              # 启动 MCP 服务器（stdio）
 modelmux a2a-server   # 启动 A2A HTTP 服务器
+modelmux dashboard    # Web 监控面板（http://127.0.0.1:41521）
+modelmux benchmark    # 运行 provider 基准测试
 modelmux init         # 交互式配置向导
 modelmux config       # TUI 配置面板（需要 modelmux[tui]）
 modelmux check        # 检查 CLI 可用性
