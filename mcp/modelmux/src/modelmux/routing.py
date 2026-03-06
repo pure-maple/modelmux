@@ -1,7 +1,12 @@
-"""Smart routing v2 — keyword patterns + historical performance scoring.
+"""Smart routing v3 — keyword patterns + history + benchmark quality scoring.
 
-Combines the built-in keyword heuristics with data from dispatch history
-(success rate, latency) to improve auto-routing accuracy over time.
+Three-signal routing:
+  1. Keyword patterns: match task text against provider-specific patterns
+  2. History performance: success rate + latency from dispatch history
+  3. Benchmark quality: per-category quality scores from benchmark results
+
+Task classification maps incoming prompts to benchmark categories
+(analysis, generation, reasoning, language) for category-aware routing.
 """
 
 from __future__ import annotations
@@ -51,12 +56,40 @@ _ROUTE_PATTERNS: dict[str, list[re.Pattern]] = {
     ],
 }
 
-# Weight for combining keyword vs history scores
-KEYWORD_WEIGHT = 0.6
-HISTORY_WEIGHT = 0.4
+# Task category classifier patterns
+_CATEGORY_PATTERNS: dict[str, re.Pattern] = {
+    "analysis": re.compile(
+        r"\b(review|audit|analyze|check|inspect|critique|evaluate|"
+        r"security|vulnerability|bug|issue|improve|refactor)\b",
+        re.I,
+    ),
+    "generation": re.compile(
+        r"\b(write|create|implement|build|generate|add|make|"
+        r"function|class|module|api|endpoint|component)\b",
+        re.I,
+    ),
+    "reasoning": re.compile(
+        r"\b(solve|explain|why|how|reason|logic|puzzle|"
+        r"algorithm|proof|deduce|infer|compare|trade.?off)\b",
+        re.I,
+    ),
+    "language": re.compile(
+        r"\b(translate|summarize|rewrite|rephrase|document|"
+        r"readme|changelog|comment|description|中文|chinese)\b",
+        re.I,
+    ),
+}
+
+# Weight for combining keyword, history, and benchmark scores
+KEYWORD_WEIGHT = 0.4
+HISTORY_WEIGHT = 0.3
+BENCHMARK_WEIGHT = 0.3
 
 # How many hours of history to consider
 HISTORY_WINDOW_HOURS = 72
+
+# Default benchmark results path
+_BENCHMARK_FILE = Path.home() / ".config" / "modelmux" / "benchmark.json"
 
 
 @dataclass
@@ -67,7 +100,9 @@ class ProviderScore:
     keyword_score: float = 0.0
     success_rate: float = 0.5  # default neutral
     latency_score: float = 0.5  # default neutral
+    benchmark_score: float = 0.5  # default neutral
     history_calls: int = 0
+    task_category: str = ""
     composite: float = 0.0
 
 
@@ -193,6 +228,83 @@ def history_scores(
     return scores
 
 
+def classify_task(task: str) -> str:
+    """Classify a task into a benchmark category.
+
+    Returns one of: "analysis", "generation", "reasoning", "language", or ""
+    (empty if no clear match).
+    """
+    scores: dict[str, int] = {}
+    for category, pattern in _CATEGORY_PATTERNS.items():
+        matches = len(pattern.findall(task))
+        if matches > 0:
+            scores[category] = matches
+
+    if not scores:
+        return ""
+    return max(scores, key=scores.get)  # type: ignore[arg-type]
+
+
+def benchmark_scores(
+    providers: list[str],
+    category: str = "",
+    benchmark_path: Path | None = None,
+) -> dict[str, float]:
+    """Load per-provider quality scores from saved benchmark results.
+
+    If a category is specified, uses only results from that category.
+    Returns {provider: quality_score} where quality_score is 0.0–1.0.
+    Providers with no benchmark data get 0.5 (neutral).
+    """
+    path = benchmark_path or _BENCHMARK_FILE
+    if not path.exists():
+        return {p: 0.5 for p in providers}
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {p: 0.5 for p in providers}
+
+    results = data.get("results", [])
+    if not results:
+        return {p: 0.5 for p in providers}
+
+    # Aggregate per-provider scores, optionally filtered by category
+    provider_data: dict[str, dict] = {}
+    for r in results:
+        prov = r.get("provider", "")
+        if prov not in providers:
+            continue
+        if category and r.get("category", "") != category:
+            continue
+
+        if prov not in provider_data:
+            provider_data[prov] = {"total": 0, "success": 0, "kw_sum": 0.0, "kw_count": 0}
+
+        pd = provider_data[prov]
+        pd["total"] += 1
+        if r.get("status") == "success":
+            pd["success"] += 1
+        kw_total = r.get("keyword_total", 0)
+        if kw_total > 0:
+            pd["kw_sum"] += r.get("keyword_hits", 0) / kw_total
+            pd["kw_count"] += 1
+
+    scores: dict[str, float] = {}
+    for p in providers:
+        pd = provider_data.get(p)
+        if not pd or pd["total"] == 0:
+            scores[p] = 0.5
+            continue
+
+        # Blend success rate (60%) and keyword accuracy (40%)
+        success_rate = pd["success"] / pd["total"]
+        kw_score = pd["kw_sum"] / pd["kw_count"] if pd["kw_count"] > 0 else 0.5
+        scores[p] = success_rate * 0.6 + kw_score * 0.4
+
+    return scores
+
+
 def smart_route(
     task: str,
     available_providers: list[str],
@@ -214,32 +326,53 @@ def smart_route(
             candidates[0]: ProviderScore(provider=candidates[0], composite=1.0)
         }
 
+    # 0. Task classification
+    category = classify_task(task)
+
     # 1. Keyword scoring
     kw_scores = keyword_scores(task, candidates)
 
     # 2. History scoring
     hist_scores = history_scores(candidates)
 
-    # 3. Composite
+    # 3. Benchmark quality scoring (category-aware)
+    bench_scores = benchmark_scores(candidates, category=category)
+
+    # 4. Composite — three-signal blend
     for prov in candidates:
         hs = hist_scores[prov]
         hs.keyword_score = kw_scores.get(prov, 0.0)
+        hs.benchmark_score = bench_scores.get(prov, 0.5)
+        hs.task_category = category
 
         # History component: blend success rate (70%) and latency (30%)
         history_component = hs.success_rate * 0.7 + hs.latency_score * 0.3
 
-        # Has enough history data? Use full weight. Otherwise, lean on keywords.
-        if hs.history_calls >= 5:
+        # Adaptive weights based on data availability
+        has_bench = bench_scores.get(prov, 0.5) != 0.5
+        if hs.history_calls >= 5 and has_bench:
+            # Full three-signal: keyword 40%, history 30%, benchmark 30%
             weight_kw = KEYWORD_WEIGHT
             weight_hist = HISTORY_WEIGHT
+            weight_bench = BENCHMARK_WEIGHT
         elif hs.history_calls >= 2:
-            weight_kw = 0.75
-            weight_hist = 0.25
+            # History but maybe no benchmark
+            weight_kw = 0.5
+            weight_hist = 0.3
+            weight_bench = 0.2 if has_bench else 0.0
+            weight_kw += 0.0 if has_bench else 0.2
         else:
-            weight_kw = 1.0
+            # No history
+            weight_kw = 0.7 if not has_bench else 0.5
             weight_hist = 0.0
+            weight_bench = 0.3 if has_bench else 0.0
+            weight_kw += 0.0 if has_bench else 0.3
 
-        hs.composite = hs.keyword_score * weight_kw + history_component * weight_hist
+        hs.composite = (
+            hs.keyword_score * weight_kw
+            + history_component * weight_hist
+            + hs.benchmark_score * weight_bench
+        )
 
     best = max(candidates, key=lambda p: hist_scores[p].composite)
 

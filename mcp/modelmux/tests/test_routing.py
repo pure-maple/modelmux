@@ -1,4 +1,4 @@
-"""Tests for smart routing v2 (keyword + history scoring)."""
+"""Tests for smart routing v3 (keyword + history + benchmark scoring)."""
 
 import json
 import tempfile
@@ -8,6 +8,8 @@ from unittest import mock
 
 from modelmux.routing import (
     ProviderScore,
+    benchmark_scores,
+    classify_task,
     keyword_scores,
     history_scores,
     smart_route,
@@ -146,3 +148,169 @@ def test_provider_score_dataclass():
     )
     assert score.provider == "codex"
     assert score.composite == 0.85
+
+
+# --- Smart routing v3: task classification ---
+
+
+def test_classify_task_analysis():
+    assert classify_task("review this code for security vulnerabilities") == "analysis"
+
+
+def test_classify_task_generation():
+    assert classify_task("implement a REST API endpoint") == "generation"
+
+
+def test_classify_task_reasoning():
+    assert classify_task("explain why this algorithm is O(n log n)") == "reasoning"
+
+
+def test_classify_task_language():
+    assert classify_task("translate the readme to Chinese") == "language"
+
+
+def test_classify_task_mixed():
+    """When multiple categories match, highest wins."""
+    result = classify_task("review and analyze the code")
+    assert result == "analysis"
+
+
+def test_classify_task_no_match():
+    """No category match returns empty string."""
+    assert classify_task("hello") == ""
+
+
+# --- Smart routing v3: benchmark scores ---
+
+
+def test_benchmark_scores_no_file():
+    """With no benchmark file, all scores should be neutral 0.5."""
+    scores = benchmark_scores(
+        ["codex", "gemini"], benchmark_path=Path("/nonexistent/path.json")
+    )
+    assert scores["codex"] == 0.5
+    assert scores["gemini"] == 0.5
+
+
+def test_benchmark_scores_with_data():
+    """Benchmark data should produce differentiated scores."""
+    data = {
+        "results": [
+            {"provider": "codex", "category": "analysis", "status": "success",
+             "keyword_hits": 4, "keyword_total": 4},
+            {"provider": "codex", "category": "analysis", "status": "success",
+             "keyword_hits": 3, "keyword_total": 4},
+            {"provider": "gemini", "category": "analysis", "status": "success",
+             "keyword_hits": 1, "keyword_total": 4},
+            {"provider": "gemini", "category": "analysis", "status": "error",
+             "keyword_hits": 0, "keyword_total": 4},
+        ],
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(data, f)
+        f.flush()
+        path = Path(f.name)
+
+    try:
+        scores = benchmark_scores(["codex", "gemini"], benchmark_path=path)
+        assert scores["codex"] > scores["gemini"]
+    finally:
+        path.unlink()
+
+
+def test_benchmark_scores_category_filter():
+    """Category filter should only use matching results."""
+    data = {
+        "results": [
+            {"provider": "codex", "category": "analysis", "status": "success",
+             "keyword_hits": 4, "keyword_total": 4},
+            {"provider": "codex", "category": "generation", "status": "error",
+             "keyword_hits": 0, "keyword_total": 4},
+            {"provider": "gemini", "category": "generation", "status": "success",
+             "keyword_hits": 3, "keyword_total": 4},
+        ],
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(data, f)
+        f.flush()
+        path = Path(f.name)
+
+    try:
+        # For "generation" category, gemini should beat codex
+        scores = benchmark_scores(
+            ["codex", "gemini"], category="generation", benchmark_path=path
+        )
+        assert scores["gemini"] > scores["codex"]
+
+        # For "analysis" category, codex should win
+        scores = benchmark_scores(
+            ["codex", "gemini"], category="analysis", benchmark_path=path
+        )
+        assert scores["codex"] > scores["gemini"]
+    finally:
+        path.unlink()
+
+
+def test_benchmark_scores_unknown_provider():
+    """Provider not in benchmark data gets neutral 0.5."""
+    data = {
+        "results": [
+            {"provider": "codex", "category": "analysis", "status": "success",
+             "keyword_hits": 4, "keyword_total": 4},
+        ],
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(data, f)
+        f.flush()
+        path = Path(f.name)
+
+    try:
+        scores = benchmark_scores(["codex", "ollama"], benchmark_path=path)
+        assert scores["codex"] > 0.5
+        assert scores["ollama"] == 0.5
+    finally:
+        path.unlink()
+
+
+# --- Smart routing v3: three-signal composite ---
+
+
+def test_smart_route_benchmark_boosts():
+    """Benchmark data should influence routing when history is sparse."""
+    bench_data = {
+        "results": [
+            {"provider": "gemini", "category": "analysis", "status": "success",
+             "keyword_hits": 4, "keyword_total": 4},
+            {"provider": "gemini", "category": "analysis", "status": "success",
+             "keyword_hits": 3, "keyword_total": 4},
+            {"provider": "codex", "category": "analysis", "status": "error",
+             "keyword_hits": 0, "keyword_total": 4},
+        ],
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(bench_data, f)
+        f.flush()
+        path = Path(f.name)
+
+    try:
+        with mock.patch("modelmux.routing._read_history_stats", return_value={}):
+            with mock.patch("modelmux.routing._BENCHMARK_FILE", path):
+                best, scores = smart_route(
+                    "review this code for security issues",
+                    available_providers=["codex", "gemini"],
+                )
+                # gemini has better benchmark score for analysis tasks
+                assert scores["gemini"].benchmark_score > scores["codex"].benchmark_score
+    finally:
+        path.unlink()
+
+
+def test_smart_route_task_category_in_scores():
+    """Task category should be stored in ProviderScore."""
+    with mock.patch("modelmux.routing._read_history_stats", return_value={}):
+        _, scores = smart_route(
+            "implement a new API endpoint",
+            available_providers=["codex", "gemini"],
+        )
+        for score in scores.values():
+            assert score.task_category == "generation"
