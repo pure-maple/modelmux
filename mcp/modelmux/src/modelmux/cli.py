@@ -357,6 +357,10 @@ def _cmd_version() -> None:
 
 
 def main() -> None:
+    from modelmux.log import setup_logging
+
+    setup_logging()
+
     parser = argparse.ArgumentParser(
         prog="modelmux",
         description=("Model multiplexer — multi-model AI collaboration MCP server"),
