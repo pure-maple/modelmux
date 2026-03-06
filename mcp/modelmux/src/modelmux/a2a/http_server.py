@@ -721,6 +721,37 @@ def _extract_task_params(params: dict[str, Any]) -> TaskParams:
     )
 
 
+def _validate_push_url(url: str) -> bool:
+    """Validate push notification URL to prevent SSRF attacks."""
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    # Only allow http/https schemes
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    hostname = parsed.hostname or ""
+    if not hostname:
+        return False
+
+    # Block loopback and link-local addresses
+    blocked_prefixes = ("127.", "169.254.", "10.", "172.16.", "172.17.",
+                        "172.18.", "172.19.", "172.20.", "172.21.",
+                        "172.22.", "172.23.", "172.24.", "172.25.",
+                        "172.26.", "172.27.", "172.28.", "172.29.",
+                        "172.30.", "172.31.", "192.168.", "0.")
+    if hostname in ("localhost", "::1", "[::1]", "metadata.google.internal"):
+        return False
+    if any(hostname.startswith(p) for p in blocked_prefixes):
+        return False
+
+    return True
+
+
 def _extract_push_config(params: dict[str, Any]) -> PushConfig | None:
     """Extract push notification config from JSON-RPC params."""
     push = params.get("pushNotification") or params.get("push_notification")
@@ -728,6 +759,9 @@ def _extract_push_config(params: dict[str, Any]) -> PushConfig | None:
         return None
     url = push.get("url", "")
     if not url:
+        return None
+    if not _validate_push_url(url):
+        logger.warning("Rejected push notification URL (SSRF protection): %s", url)
         return None
     return PushConfig(
         url=url,

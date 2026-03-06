@@ -151,6 +151,20 @@ def stream_subprocess(
     return process.returncode or 0
 
 
+def sanitize_extra_args(extra_args: dict | None) -> dict | None:
+    """Strip values that look like CLI flag injection attempts."""
+    if not extra_args:
+        return extra_args
+    safe = {}
+    for k, v in extra_args.items():
+        if isinstance(v, str) and v.startswith("-"):
+            continue  # reject flag-like values
+        if isinstance(v, list):
+            v = [item for item in v if not (isinstance(item, str) and item.startswith("-"))]
+        safe[k] = v
+    return safe if safe else None
+
+
 class BaseAdapter:
     """Base class for model CLI adapters."""
 
@@ -207,6 +221,7 @@ class BaseAdapter:
         """
         run_id = str(uuid.uuid4())[:8]
         start = time.monotonic()
+        extra_args = sanitize_extra_args(extra_args)
 
         if not self.check_available():
             return AdapterResult(

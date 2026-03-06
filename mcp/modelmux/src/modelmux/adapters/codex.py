@@ -95,7 +95,7 @@ class CodexAdapter(BaseAdapter):
             "write": "workspace-write",
             "full": "danger-full-access",
         }
-        codex_sandbox = sandbox_map.get(sandbox, sandbox)
+        codex_sandbox = sandbox_map.get(sandbox, "read-only")
         cmd.extend(["--sandbox", codex_sandbox])
 
         if extra_args:
