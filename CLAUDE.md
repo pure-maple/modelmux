@@ -34,7 +34,8 @@ MCP Client → modelmux (FastMCP server, stdio)
       ├── CodexAdapter  → codex exec --json
       ├── GeminiAdapter → gemini -p -o stream-json
       ├── ClaudeAdapter → claude -p
-      └── OllamaAdapter → ollama run <model>
+      ├── OllamaAdapter → ollama run <model>
+      └── A2ARemoteAdapter → external A2A agents (via httpx)
 
 A2A HTTP Server (modelmux a2a-server)
   ├── GET  /.well-known/agent.json  → Agent Card
@@ -60,6 +61,8 @@ A2A HTTP Server (modelmux a2a-server)
 | `a2a/patterns.py` | Collaboration patterns (review, consensus, debate) |
 | `a2a/engine.py` | Multi-agent collaboration orchestrator |
 | `a2a/http_server.py` | A2A HTTP transport (JSON-RPC 2.0 + SSE) |
+| `a2a/client.py` | A2A client for connecting to external agents |
+| `adapters/a2a_remote.py` | Remote A2A agent as standard adapter |
 | `routing.py` | Smart routing v2 (keyword + history scoring) |
 | `config.py` | Profile loading, routing rules |
 | `detect.py` | Caller platform detection |

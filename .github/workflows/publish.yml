@@ -27,9 +27,7 @@ jobs:
         run: uv sync
 
       - name: Unit tests
-        run: |
-          uv run python tests/test_detect.py
-          uv run python tests/test_audit_policy.py
+        run: uv run --with pytest --with pytest-asyncio python -m pytest tests/ --ignore=tests/test_e2e.py -q
 
       - name: Import verification
         run: |

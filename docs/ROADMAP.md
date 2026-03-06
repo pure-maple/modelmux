@@ -60,7 +60,7 @@ codex / gemini / claude / ollama / 自定义插件
 ## 近期规划 (P0)
 
 ### A2A 协议增强
-- [ ] **A2A 客户端**: 作为 A2A 客户端连接外部 A2A agent（不只是服务端）
+- [x] **A2A 客户端**: 作为 A2A 客户端连接外部 A2A agent（Client + Remote Adapter + 配置集成）
 - [x] **端到端集成测试**: httpx AsyncClient → A2A server → 协作引擎 → 完整链路验证（10 tests）
 - [x] **任务持久化**: 重启后恢复已完成任务（JSONL 持久化 + `--no-persist` CLI 选项）
 - [x] **认证机制**: Bearer token + constant-time comparison
