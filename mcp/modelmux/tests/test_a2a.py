@@ -274,3 +274,22 @@ def test_engine_debate_runs():
         pattern_name="debate",
     ))
     assert result.state == TaskState.COMPLETED
+
+
+def test_engine_cancel_event():
+    """Engine should respect cancel_event and transition to CANCELED."""
+    cancel = asyncio.Event()
+    cancel.set()  # Set immediately — engine should stop before any dispatch
+
+    adapter = FakeCollabAdapter(response="This should not run")
+    engine = CollaborationEngine(
+        get_adapter=lambda p: adapter,
+        config=EngineConfig(cancel_event=cancel),
+    )
+    result = asyncio.run(engine.run(
+        task="this should be canceled",
+        pattern_name="review",
+    ))
+    assert result.state == TaskState.CANCELED
+    # Should have zero or very few turns since we canceled immediately
+    assert len(result.turns) == 0

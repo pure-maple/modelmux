@@ -46,6 +46,7 @@ class EngineConfig:
     sandbox: str = "read-only"
     timeout_per_turn: int = 300
     on_progress: Callable[[str], None] | None = None
+    cancel_event: asyncio.Event | None = None
 
 
 class CollaborationEngine:
@@ -121,11 +122,17 @@ class CollaborationEngine:
         # Main collaboration loop
         iteration = 0
         while not collab.is_terminal():
+            # Check for cancellation
+            if self._is_canceled():
+                self._progress("Collaboration canceled")
+                collab.transition(TaskState.CANCELED)
+                break
+
             iteration += 1
             self._progress(f"Iteration {iteration}/{pattern.max_iterations}...")
 
             for round_idx, round_spec in enumerate(pattern.rounds):
-                if collab.is_terminal():
+                if collab.is_terminal() or self._is_canceled():
                     break
 
                 turns = await self._execute_round(
@@ -163,6 +170,12 @@ class CollaborationEngine:
                     a.artifact_id: "".join(p.text for p in a.parts)
                     for a in collab.artifacts
                 }
+
+            # Handle cancellation after round
+            if self._is_canceled() and not collab.is_terminal():
+                self._progress("Collaboration canceled")
+                collab.transition(TaskState.CANCELED)
+                break
 
             # Check iteration limit
             if not collab.is_terminal() and iteration >= pattern.max_iterations:
@@ -356,6 +369,12 @@ class CollaborationEngine:
                 metadata={"type": "trace"},
             )
         )
+
+    def _is_canceled(self) -> bool:
+        """Check if cancellation has been requested."""
+        if self._config.cancel_event and self._config.cancel_event.is_set():
+            return True
+        return False
 
     def _progress(self, msg: str) -> None:
         if self._config.on_progress:

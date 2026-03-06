@@ -280,8 +280,8 @@ class A2AServer:
         entry.state = "working"
         self.store.update(entry.task_id, state="working")
 
-        # Run collaboration
-        engine = self._create_engine()
+        # Run collaboration (cancel_event allows tasks/cancel to stop it)
+        engine = self._create_engine(cancel_event=entry.cancel_event)
         collab = await engine.run(
             task=task_text,
             pattern_name=pattern,
@@ -389,7 +389,10 @@ class A2AServer:
                 except asyncio.QueueFull:
                     pass
 
-            engine = self._create_engine(on_progress=on_progress)
+            engine = self._create_engine(
+                on_progress=on_progress,
+                cancel_event=entry.cancel_event,
+            )
 
             # Run collaboration in background
             collab_future = asyncio.create_task(
@@ -479,7 +482,11 @@ class A2AServer:
 
     # --- Helpers ---
 
-    def _create_engine(self, on_progress: Any = None) -> CollaborationEngine:
+    def _create_engine(
+        self,
+        on_progress: Any = None,
+        cancel_event: asyncio.Event | None = None,
+    ) -> CollaborationEngine:
         return CollaborationEngine(
             get_adapter=self._get_adapter,
             config=EngineConfig(
@@ -487,6 +494,7 @@ class A2AServer:
                 sandbox=self.sandbox,
                 timeout_per_turn=600,
                 on_progress=on_progress,
+                cancel_event=cancel_event,
             ),
         )
 
