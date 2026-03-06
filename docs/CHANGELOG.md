@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.18.0 (2026-03-06)
+- **A2A 协作引擎**: 首个 Agent-to-Agent 协议实现，真正的多 agent 迭代协作
+- `mux_collaborate` MCP 工具: 支持 review/consensus/debate 三种协作模式
+- A2A 数据模型: Task 状态机 (submitted→working→input-required→completed/failed)、Message/Part/Artifact、AgentCard
+- 分层上下文管理: 固定记忆 + 滚动摘要 + 最近原文窗口 + 工件索引
+- 四层收敛检测: 硬上限 → 结构化信号 → 稳定性检测 → LLM 裁判
+- 三种协作模式: review（实现→审查→修订循环）、consensus（多视角并行+合成）、debate（对抗辩论+仲裁）
+- 协作引擎独立于传输层，未来可同时服务 MCP 和 A2A HTTP
+- 23 个新测试（总计 82 个）
+
 ## v0.17.0 (2026-03-06)
 - **智能路由 v2**: 基于历史分发数据的自适应路由
 - 新模块 `routing.py`: 关键词匹配 (60%) + 历史性能评分 (40%) 加权路由

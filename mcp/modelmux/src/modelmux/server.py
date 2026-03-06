@@ -17,6 +17,8 @@ from typing import Literal
 
 from mcp.server.fastmcp import Context, FastMCP
 
+from modelmux.a2a import list_patterns as a2a_list_patterns
+from modelmux.a2a.engine import CollaborationEngine, EngineConfig
 from modelmux.adapters import (
     ADAPTERS,
     BaseAdapter,
@@ -875,3 +877,139 @@ async def mux_check(ctx: Context) -> str:
     status["_audit"] = get_audit_stats()
 
     return json.dumps(status, indent=2)
+
+
+@mcp.tool()
+async def mux_collaborate(
+    task: str,
+    pattern: str,
+    ctx: Context,
+    providers: str = "",
+    workdir: str = ".",
+    sandbox: Literal["read-only", "write", "full"] = "read-only",
+    max_rounds: int = 0,
+    timeout: int = 1800,
+    list_patterns: bool = False,
+) -> str:
+    """Run a multi-agent collaboration with iterative feedback loops.
+
+    Unlike mux_dispatch (single prompt) or mux_workflow (linear pipeline),
+    mux_collaborate enables TRUE agent-to-agent collaboration where agents
+    review each other's work, provide feedback, and iterate until convergence.
+
+    This implements the A2A (Agent-to-Agent) protocol concepts:
+    task lifecycle, context continuity, and convergence detection.
+
+    Args:
+        task: The goal/task for the collaboration session.
+        pattern: Collaboration pattern to use:
+            - "review": Implement → Review → Revise loop (codex builds,
+              claude reviews, iterate until approved)
+            - "consensus": Multi-perspective parallel analysis + synthesis
+              (codex/gemini/claude each analyze, then synthesize)
+            - "debate": Adversarial debate (advocate vs critic + arbiter verdict)
+        providers: Optional role→provider mapping as JSON string, e.g.
+            '{"implementer": "codex", "reviewer": "gemini"}'.
+            If empty, uses pattern defaults.
+        workdir: Working directory for all agents.
+        sandbox: Security level for all agent operations.
+        max_rounds: Override max collaboration rounds (0 = pattern default).
+        timeout: Max wall-clock seconds for entire collaboration (default 1800).
+        list_patterns: If True, return available patterns instead of running.
+    """
+    if list_patterns:
+        return json.dumps(a2a_list_patterns(), indent=2, ensure_ascii=False)
+
+    _ensure_custom_providers_loaded()
+    resolved_workdir = str(Path(workdir).resolve())
+
+    # Parse provider overrides
+    provider_map: dict[str, str] | None = None
+    if providers:
+        try:
+            provider_map = json.loads(providers)
+        except json.JSONDecodeError:
+            return json.dumps(
+                {"status": "error", "error": f"Invalid providers JSON: {providers}"},
+                indent=2,
+            )
+
+    # Progress reporting via MCP context
+    async def on_progress(msg: str) -> None:
+        await ctx.info(msg)
+
+    # Sync wrapper for the engine's progress callback
+    def sync_progress(msg: str) -> None:
+        # Engine calls this synchronously; we log it
+        try:
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(on_progress(msg))
+        except RuntimeError:
+            pass
+
+    engine = CollaborationEngine(
+        get_adapter=_get_adapter,
+        config=EngineConfig(
+            workdir=resolved_workdir,
+            sandbox=sandbox,
+            timeout_per_turn=min(timeout // 3, 600),
+            on_progress=sync_progress,
+        ),
+    )
+
+    await ctx.info(f"Starting '{pattern}' collaboration...")
+
+    collab = await engine.run(
+        task=task,
+        pattern_name=pattern,
+        providers=provider_map,
+        max_rounds=max_rounds,
+        max_wall_time=timeout,
+    )
+
+    # Build result
+    result: dict = {
+        "task_id": collab.task_id,
+        "context_id": collab.context_id,
+        "pattern": collab.pattern,
+        "state": collab.state.value,
+        "rounds": collab.round_count,
+        "duration_seconds": round(collab.elapsed_seconds, 1),
+        "providers_used": collab.providers,
+        "turns": [
+            {
+                "turn_id": t.turn_id,
+                "role": t.role,
+                "provider": t.provider,
+                "status": t.status,
+                "duration": round(t.duration_seconds, 1),
+                "output_summary": t.output_summary or t.output[:300],
+            }
+            for t in collab.turns
+        ],
+    }
+
+    # Include final output (last successful turn's full output)
+    final_turns = [t for t in reversed(collab.turns) if t.status == "success"]
+    if final_turns:
+        result["final_output"] = final_turns[0].output
+
+    # Include artifacts
+    if collab.artifacts:
+        result["artifacts"] = [
+            {
+                "id": a.artifact_id,
+                "name": a.name,
+                "content": "".join(p.text for p in a.parts)[:2000],
+            }
+            for a in collab.artifacts
+            if a.metadata.get("type") != "trace"
+        ]
+
+    # Log to history
+    log_result(result, task=task, source="collaborate")
+
+    return json.dumps(result, indent=2, ensure_ascii=False)

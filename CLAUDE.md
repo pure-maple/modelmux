@@ -16,10 +16,11 @@ Model multiplexer — unified MCP server for cross-platform multi-model AI colla
 
 ```
 MCP Client → modelmux (FastMCP server, stdio)
-  ├── mux_dispatch   → single provider dispatch (auto-route, failover)
-  ├── mux_broadcast  → parallel multi-provider dispatch
-  ├── mux_history    → query result history & analytics
-  └── mux_check      → availability & config status
+  ├── mux_dispatch     → single provider dispatch (auto-route, failover)
+  ├── mux_broadcast    → parallel multi-provider dispatch
+  ├── mux_collaborate  → A2A iterative multi-agent collaboration
+  ├── mux_history      → query result history & analytics
+  └── mux_check        → availability & config status
       │
       ├── CodexAdapter  → codex exec --json
       ├── GeminiAdapter → gemini -p -o stream-json
@@ -34,6 +35,7 @@ MCP Client → modelmux (FastMCP server, stdio)
 | `server.py` | MCP tools (dispatch, broadcast, history, check) |
 | `adapters/base.py` | Threaded subprocess runner, canonical result schema |
 | `adapters/{codex,gemini,claude,ollama}.py` | Provider-specific adapters |
+| `a2a/` | A2A collaboration engine (types, context, convergence, patterns, engine) |
 | `routing.py` | Smart routing v2 (keyword + history scoring) |
 | `config.py` | Profile loading, routing rules |
 | `detect.py` | Caller platform detection |
