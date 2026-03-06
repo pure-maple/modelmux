@@ -239,6 +239,14 @@ def _cmd_benchmark(args: argparse.Namespace) -> None:
         save_report(report, output)
         print(f"\nResults saved to {output}")
 
+    # Always save to routing-readable location for smart routing v3
+    from pathlib import Path
+
+    routing_path = Path.home() / ".config" / "modelmux" / "benchmark.json"
+    routing_path.parent.mkdir(parents=True, exist_ok=True)
+    save_report(report, str(routing_path))
+    print(f"Routing data updated: {routing_path}")
+
 
 def _cmd_export(args: argparse.Namespace) -> None:
     """Export history to CSV/JSON/Markdown."""

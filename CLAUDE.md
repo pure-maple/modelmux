@@ -73,7 +73,7 @@ Web Dashboard (modelmux dashboard --port 41521)
 | `a2a/http_server.py` | A2A HTTP transport (JSON-RPC 2.0 + SSE) |
 | `a2a/client.py` | A2A client for connecting to external agents |
 | `adapters/a2a_remote.py` | Remote A2A agent as standard adapter |
-| `routing.py` | Smart routing v2 (keyword + history scoring) |
+| `routing.py` | Smart routing v3 (keyword + history + benchmark quality) |
 | `config.py` | Profile loading, routing rules |
 | `detect.py` | Caller platform detection |
 | `audit.py` | JSONL audit log (policy rate-limiting) |

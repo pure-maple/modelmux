@@ -80,8 +80,8 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 - [x] 日志系统改进：modelmux.log 模块 + MODELMUX_LOG_LEVEL/FORMAT 环境变量
 
 ### 智能路由 v3
-- [ ] 基于 benchmark 结果的自动路由权重调整
-- [ ] 任务类型分类器（代码生成 vs 审查 vs 翻译等）
+- [x] 基于 benchmark 结果的自动路由权重调整
+- [x] 任务类型分类器（analysis/generation/reasoning/language）
 - [ ] 用户反馈闭环（用户评价→路由权重更新）
 
 ### 生态集成
