@@ -184,3 +184,63 @@ class TestExtraArgsSanitization:
         assert "model" in result
         assert "profile" not in result
         assert "reasoning_effort" in result
+
+
+class TestA2APolicyEnforcement:
+    """A2A HTTP server should enforce the same policy as MCP path."""
+
+    def test_check_provider_policy_allows_valid(self):
+        from unittest.mock import patch
+
+        from modelmux.a2a.http_server import A2AServer
+        from modelmux.policy import Policy
+
+        server = A2AServer(get_adapter=lambda x: None)
+        with patch("modelmux.a2a.http_server.load_policy", return_value=Policy()):
+            result = server._check_provider_policy({"reviewer": "codex", "author": "gemini"})
+        assert result is None
+
+    def test_check_provider_policy_blocks_denied(self):
+        from unittest.mock import patch
+
+        from modelmux.a2a.http_server import A2AServer
+        from modelmux.policy import Policy
+
+        server = A2AServer(get_adapter=lambda x: None)
+        policy = Policy(blocked_providers=["codex"])
+        with patch("modelmux.a2a.http_server.load_policy", return_value=policy):
+            result = server._check_provider_policy({"reviewer": "codex"})
+        assert result is not None
+        assert "codex" in result
+
+    def test_check_provider_policy_handles_spec_syntax(self):
+        from unittest.mock import patch
+
+        from modelmux.a2a.http_server import A2AServer
+        from modelmux.policy import Policy
+
+        server = A2AServer(get_adapter=lambda x: None)
+        policy = Policy(blocked_providers=["dashscope"])
+        with patch("modelmux.a2a.http_server.load_policy", return_value=policy):
+            result = server._check_provider_policy({"reviewer": "dashscope/kimi-k2.5"})
+        assert result is not None
+        assert "dashscope" in result
+
+    def test_check_provider_policy_none_map(self):
+        from modelmux.a2a.http_server import A2AServer
+
+        server = A2AServer(get_adapter=lambda x: None)
+        assert server._check_provider_policy(None) is None
+
+    def test_check_provider_policy_allowlist(self):
+        from unittest.mock import patch
+
+        from modelmux.a2a.http_server import A2AServer
+        from modelmux.policy import Policy
+
+        server = A2AServer(get_adapter=lambda x: None)
+        policy = Policy(allowed_providers=["gemini"])
+        with patch("modelmux.a2a.http_server.load_policy", return_value=policy):
+            result = server._check_provider_policy({"reviewer": "codex"})
+        assert result is not None
+        assert "codex" in result

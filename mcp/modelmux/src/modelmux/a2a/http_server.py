@@ -28,6 +28,7 @@ from starlette.routing import Route
 
 from modelmux import __version__
 from modelmux.a2a.engine import CollaborationEngine, EngineConfig
+from modelmux.policy import check_policy, load_policy
 from modelmux.a2a.patterns import list_patterns
 from modelmux.a2a.types import (
     AgentCard,
@@ -377,11 +378,31 @@ class A2AServer:
 
     # --- JSON-RPC Method Handlers ---
 
+    def _check_provider_policy(self, provider_map: dict[str, str] | None) -> str | None:
+        """Check all providers in a map against loaded policy.
+
+        Returns an error message if any provider is denied, None if all OK.
+        """
+        if not provider_map:
+            return None
+        policy = load_policy()
+        for role, provider_spec in provider_map.items():
+            provider = provider_spec.split("/", 1)[0] if "/" in provider_spec else provider_spec
+            result = check_policy(policy, provider, sandbox=self.sandbox)
+            if not result.allowed:
+                return f"Policy denied provider '{provider}' (role={role}): {result.reason}"
+        return None
+
     async def _handle_tasks_send(
         self, params: dict[str, Any], request: Request
     ) -> dict[str, Any]:
         """tasks/send — submit a task and wait for completion."""
         tp = _extract_task_params(params)
+
+        # Policy enforcement
+        policy_err = self._check_provider_policy(tp.provider_map)
+        if policy_err:
+            raise InvalidParamsError(policy_err)
 
         # Create or resume task
         task_id = params.get("id", "")
@@ -478,6 +499,11 @@ class A2AServer:
         from sse_starlette.sse import EventSourceResponse
 
         tp = _extract_task_params(params)
+
+        # Policy enforcement
+        policy_err = self._check_provider_policy(tp.provider_map)
+        if policy_err:
+            raise InvalidParamsError(policy_err)
 
         task_id = params.get("id", "")
         entry = self.store.get(task_id) if task_id else None
