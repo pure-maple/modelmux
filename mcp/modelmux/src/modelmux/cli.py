@@ -204,7 +204,10 @@ def _cmd_history(args: argparse.Namespace) -> None:
     limit = getattr(args, "limit", 10)
     provider = getattr(args, "provider", "")
     hours = getattr(args, "hours", 0)
-    entries = read_history(HistoryQuery(limit=limit, provider=provider, hours=hours))
+    source = getattr(args, "source", "")
+    entries = read_history(
+        HistoryQuery(limit=limit, provider=provider, hours=hours, source=source)
+    )
 
     if not entries:
         print("  No history entries found.")
@@ -212,18 +215,26 @@ def _cmd_history(args: argparse.Namespace) -> None:
 
     print("modelmux — Recent Dispatches")
     print("-" * 60)
+
+    _SOURCE_TAGS = {
+        "broadcast": "[B]",
+        "cli-dispatch": "[C]",
+        "cli-broadcast": "[CB]",
+        "collaborate": "[A]",
+    }
+
     for entry in entries:
         ts = entry.get("ts", 0)
         ts_str = time.strftime("%m-%d %H:%M", time.localtime(ts)) if ts else "?"
         prov = entry.get("provider", "?")
         status = entry.get("status", "?")
         dur = entry.get("duration_seconds", 0)
-        task = entry.get("task", "")[:50]
+        task_str = entry.get("task", "")[:50]
         src = entry.get("source", "dispatch")
 
         icon = "\033[0;32m+\033[0m" if status == "success" else "\033[1;31m!\033[0m"
-        tag = "[B]" if src == "broadcast" else ""
-        print(f"  {icon} {ts_str}  {prov:8s} {dur:5.1f}s  {tag}{task}")
+        tag = _SOURCE_TAGS.get(src, "")
+        print(f"  {icon} {ts_str}  {prov:8s} {dur:5.1f}s  {tag}{task_str}")
     print()
 
 
@@ -688,6 +699,11 @@ def main() -> None:
     )
     hist_p.add_argument(
         "--costs", action="store_true", help="Include cost estimation breakdown"
+    )
+    hist_p.add_argument(
+        "--source",
+        default="",
+        help="Filter by source (dispatch, broadcast, cli-dispatch, cli-broadcast)",
     )
 
     # modelmux benchmark
