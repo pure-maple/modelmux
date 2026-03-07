@@ -639,6 +639,86 @@ def _cmd_broadcast(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_profile(args: argparse.Namespace) -> None:
+    """List or show configuration profiles."""
+    import json as json_mod
+
+    from modelmux.config import load_config
+
+    config = load_config()
+    use_json = getattr(args, "json", False)
+    profile_name = getattr(args, "name", "")
+
+    if profile_name:
+        # Show specific profile
+        prof = config.profiles.get(profile_name)
+        if not prof:
+            msg = f"Profile '{profile_name}' not found"
+            if use_json:
+                print(json_mod.dumps({"error": msg}))
+            else:
+                print(f"  {msg}")
+            sys.exit(1)
+
+        if use_json:
+            data = {
+                "name": profile_name,
+                "description": prof.description,
+                "providers": {},
+            }
+            for pname, pc in prof.providers.items():
+                data["providers"][pname] = {
+                    "model": pc.model,
+                    "base_url": pc.base_url,
+                    "api_key_env": pc.api_key_env,
+                }
+            print(json_mod.dumps(data, indent=2))
+        else:
+            print(f"Profile: {profile_name}")
+            if prof.description:
+                print(f"  {prof.description}")
+            print()
+            for pname, pc in prof.providers.items():
+                parts = [pname]
+                if pc.model:
+                    parts.append(f"model={pc.model}")
+                if pc.base_url:
+                    parts.append(f"url={pc.base_url}")
+                print(f"  {' | '.join(parts)}")
+            if not prof.providers:
+                print("  (no provider overrides)")
+        return
+
+    # List all profiles
+    profiles = config.profiles
+    active = config.active_profile
+
+    if use_json:
+        data = {
+            "active": active,
+            "profiles": {},
+        }
+        for name, prof in profiles.items():
+            data["profiles"][name] = {
+                "description": prof.description,
+                "providers": list(prof.providers.keys()),
+            }
+        print(json_mod.dumps(data, indent=2))
+    else:
+        print("modelmux — Profiles")
+        print("-" * 40)
+        if not profiles:
+            print("  No profiles configured.")
+            print("  Create one in ~/.config/modelmux/profiles.toml")
+        for name, prof in profiles.items():
+            marker = " *" if name == active else ""
+            desc = f" — {prof.description}" if prof.description else ""
+            provs = ", ".join(prof.providers.keys())
+            prov_str = f" [{provs}]" if provs else ""
+            print(f"  {name}{marker}{desc}{prov_str}")
+        print()
+
+
 def _cmd_feedback(args: argparse.Namespace) -> None:
     """Submit or view user feedback."""
     import json
@@ -941,6 +1021,15 @@ def main() -> None:
         help="Task prompt (reads from stdin if omitted)",
     )
 
+    # modelmux profile
+    prof_p = subparsers.add_parser(
+        "profile", help="List or show configuration profiles"
+    )
+    prof_p.add_argument(
+        "name", nargs="?", default="", help="Profile name to show details"
+    )
+    prof_p.add_argument("--json", action="store_true", help="Output as JSON")
+
     # modelmux feedback
     fb_p = subparsers.add_parser(
         "feedback", help="Submit or view user feedback for routing"
@@ -994,6 +1083,8 @@ def main() -> None:
         _cmd_dispatch(args)
     elif args.command == "broadcast":
         _cmd_broadcast(args)
+    elif args.command == "profile":
+        _cmd_profile(args)
     elif args.command == "feedback":
         _cmd_feedback(args)
     elif args.command == "version":

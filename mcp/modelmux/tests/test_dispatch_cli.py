@@ -414,6 +414,94 @@ def test_broadcast_all_fail_exits_1(capsys):
     assert exc_info.value.code == 1
 
 
+# ── profile tests ──
+
+
+def test_profile_list_empty(capsys):
+    """profile with no profiles should show 'No profiles'."""
+    from modelmux.cli import _cmd_profile
+    from modelmux.config import MuxConfig
+
+    ns = MagicMock()
+    ns.name = ""
+    ns.json = False
+
+    with patch("modelmux.config.load_config", return_value=MuxConfig()):
+        _cmd_profile(ns)
+
+    captured = capsys.readouterr()
+    assert "No profiles" in captured.out
+
+
+def test_profile_list_with_profiles(capsys):
+    """profile should list configured profiles."""
+    from modelmux.cli import _cmd_profile
+    from modelmux.config import MuxConfig, Profile, ProviderConfig
+
+    config = MuxConfig(
+        active_profile="budget",
+        profiles={
+            "budget": Profile(
+                description="Use cheaper models",
+                providers={"codex": ProviderConfig(model="gpt-4.1-mini")},
+            ),
+        },
+    )
+    ns = MagicMock()
+    ns.name = ""
+    ns.json = False
+
+    with patch("modelmux.config.load_config", return_value=config):
+        _cmd_profile(ns)
+
+    captured = capsys.readouterr()
+    assert "budget" in captured.out
+    assert "cheaper" in captured.out
+
+
+def test_profile_show_json(capsys):
+    """profile <name> --json should output JSON."""
+    from modelmux.cli import _cmd_profile
+    from modelmux.config import MuxConfig, Profile, ProviderConfig
+
+    config = MuxConfig(
+        profiles={
+            "fast": Profile(
+                description="Speed",
+                providers={"gemini": ProviderConfig(model="gemini-2.5-flash")},
+            ),
+        },
+    )
+    ns = MagicMock()
+    ns.name = "fast"
+    ns.json = True
+
+    with patch("modelmux.config.load_config", return_value=config):
+        _cmd_profile(ns)
+
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["name"] == "fast"
+    assert data["providers"]["gemini"]["model"] == "gemini-2.5-flash"
+
+
+def test_profile_not_found():
+    """profile <unknown> should exit 1."""
+    from modelmux.cli import _cmd_profile
+    from modelmux.config import MuxConfig
+
+    ns = MagicMock()
+    ns.name = "nonexistent"
+    ns.json = False
+
+    with (
+        patch("modelmux.config.load_config", return_value=MuxConfig()),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _cmd_profile(ns)
+    assert exc_info.value.code == 1
+
+
 # ── feedback tests ──
 
 
