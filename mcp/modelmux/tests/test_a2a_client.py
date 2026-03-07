@@ -322,3 +322,136 @@ class TestA2AAgentRegistration:
         before = len(_custom_adapters)
         load_custom_providers({"a2a_agents": "not a dict"})
         assert len(_custom_adapters) == before
+
+
+# --- Additional A2A Client parsing tests ---
+
+
+class TestA2AClientParsingExtended:
+    """Extended parsing tests for edge cases."""
+
+    def test_parse_multiple_history_entries(self):
+        client = A2AClient(A2AClientConfig(url="http://test"))
+        body = {
+            "result": {
+                "id": "t1",
+                "status": {"state": "completed"},
+                "history": [
+                    {
+                        "role": "user",
+                        "parts": [{"type": "text", "text": "input"}],
+                    },
+                    {
+                        "role": "agent",
+                        "parts": [{"type": "text", "text": "first"}],
+                    },
+                    {
+                        "role": "agent",
+                        "parts": [{"type": "text", "text": "second"}],
+                    },
+                ],
+            },
+        }
+        resp = client._parse_response(body)
+        # Last agent message wins
+        assert resp.output == "second"
+
+    def test_parse_non_text_parts_skipped(self):
+        client = A2AClient(A2AClientConfig(url="http://test"))
+        body = {
+            "result": {
+                "id": "t1",
+                "status": {"state": "completed"},
+                "history": [
+                    {
+                        "role": "agent",
+                        "parts": [
+                            {"type": "data", "data": "binary"},
+                            {"type": "text", "text": "actual"},
+                        ],
+                    },
+                ],
+            },
+        }
+        resp = client._parse_response(body)
+        assert resp.output == "actual"
+
+    def test_parse_artifacts(self):
+        client = A2AClient(A2AClientConfig(url="http://test"))
+        body = {
+            "result": {
+                "id": "t1",
+                "status": {"state": "completed"},
+                "artifacts": [
+                    {"id": "a1", "parts": [{"text": "code"}]}
+                ],
+            },
+        }
+        resp = client._parse_response(body)
+        assert len(resp.artifacts) == 1
+
+    def test_parse_no_result(self):
+        client = A2AClient(A2AClientConfig(url="http://test"))
+        body = {"jsonrpc": "2.0", "id": 1}
+        resp = client._parse_response(body)
+        assert resp.task_id == ""
+        assert resp.output == ""
+
+    def test_parse_error_without_message(self):
+        client = A2AClient(A2AClientConfig(url="http://test"))
+        body = {"error": {"code": -32600}}
+        resp = client._parse_response(body)
+        assert resp.error != ""
+
+
+class TestA2AClientConfig:
+    def test_defaults(self):
+        cfg = A2AClientConfig()
+        assert cfg.url == ""
+        assert cfg.token == ""
+        assert cfg.timeout == 600.0
+        assert cfg.name == ""
+
+
+class TestA2AResponse:
+    def test_defaults(self):
+        from modelmux.a2a.client import A2AResponse
+
+        resp = A2AResponse()
+        assert resp.task_id == ""
+        assert resp.state == ""
+        assert resp.output == ""
+        assert resp.error == ""
+        assert resp.metadata == {}
+        assert resp.history == []
+        assert resp.artifacts == []
+
+
+class TestA2AClientInit:
+    def test_token_header(self):
+        client = A2AClient(
+            A2AClientConfig(url="http://test", token="secret")
+        )
+        assert client._headers["Authorization"] == "Bearer secret"
+
+    def test_no_token(self):
+        client = A2AClient(A2AClientConfig(url="http://test"))
+        assert "Authorization" not in client._headers
+
+    def test_name_from_config(self):
+        client = A2AClient(
+            A2AClientConfig(url="http://test", name="MyAgent")
+        )
+        assert client.name == "MyAgent"
+
+    def test_name_fallback_to_url(self):
+        client = A2AClient(
+            A2AClientConfig(url="http://test:41520")
+        )
+        assert client.name == "http://test:41520"
+
+    def test_url_trailing_slash_stripped(self):
+        client = A2AClient(
+            A2AClientConfig(url="http://test:41520/")
+        )
+        assert client._base_url == "http://test:41520"
