@@ -1,0 +1,39 @@
+# CodeRabbit AI configuration
+# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: zh-CN
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+
+chat:
+  auto_reply: true
+
+tone_instructions: |
+  Use Chinese for all review comments.
+  Focus on: security issues, logic bugs, test coverage gaps, and performance.
+  Be concise — flag real issues, skip style nitpicks.
+  This is a Python MCP server project (modelmux) with adapters for AI model CLIs.
+
+path_instructions:
+  - path: "src/modelmux/server.py"
+    instructions: "Core MCP tool definitions. Check for: policy enforcement, input validation, adapter error handling."
+  - path: "src/modelmux/adapters/**"
+    instructions: "CLI adapter layer. Check for: command injection, subprocess safety, timeout handling."
+  - path: "src/modelmux/a2a/**"
+    instructions: "A2A protocol implementation. Check for: JSON-RPC compliance, state machine correctness, SSE format."
+  - path: "tests/**"
+    instructions: "Test files. Check for: proper mocking, edge case coverage, no flaky tests."
+
+path_filters:
+  - "!**/.venv/**"
+  - "!**/node_modules/**"
+  - "!**/__pycache__/**"
+  - "!**/.coverage"
