@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.29.0 (2026-03-07)
+
+### New Features
+- **`modelmux clean` command**: Remove data files (history/audit/feedback/status/benchmark) with `--dry-run` support
+- **`modelmux history --json`**: JSON output for scripting and CI integration
+- **DashScope in init wizard**: `modelmux init` detects and configures DashScope API
+- **`modelmux check` enhanced**: Shows config profiles, routing rules, 24h history summary
+- **`modelmux export --source`**: Filter exports by dispatch source
+
+### Bug Fixes
+- Dashboard `api_providers` uses `check_available()` for DashScope support
+- Benchmark async runner fix for provider benchmarks
+
+### Test Coverage
+- 937 tests passing (from 459 in v0.28.0)
+- 83% overall coverage (from ~50%)
+- server.py 37%→76%, cli.py 40%→65%, init_wizard.py 28%→87%, convergence/context/workflow/compare→100%
+
 ## v0.28.0 (2026-03-07)
 
 ### New Features
