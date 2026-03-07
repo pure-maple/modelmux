@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import shutil
 from dataclasses import asdict
 
 from starlette.applications import Starlette
@@ -78,6 +77,7 @@ async def api_stats(request: Request) -> JSONResponse:
 async def api_providers(request: Request) -> JSONResponse:
     """GET /api/providers — provider availability and info."""
     from modelmux.adapters import ADAPTERS, get_all_adapters
+    from modelmux.adapters.base import BaseAdapter
 
     all_adapters = get_all_adapters()
     providers = {}
@@ -85,26 +85,16 @@ async def api_providers(request: Request) -> JSONResponse:
         is_builtin = name in ADAPTERS
         is_custom = not is_builtin
 
-        # Check binary availability for CLI-based adapters
         available = False
         binary = ""
         try:
-            if hasattr(adapter_or_cls, "_binary_name"):
-                if callable(adapter_or_cls._binary_name):
-                    # It's a class, instantiate to call
-                    inst = (
-                        adapter_or_cls()
-                        if isinstance(adapter_or_cls, type)
-                        else adapter_or_cls
-                    )
-                    binary = inst._binary_name()
-                    available = shutil.which(binary) is not None
-                else:
-                    binary = adapter_or_cls._binary_name
-                    available = shutil.which(binary) is not None
-            else:
-                # A2A remote adapters are "available" if configured
-                available = True
+            inst = (
+                adapter_or_cls
+                if isinstance(adapter_or_cls, BaseAdapter)
+                else adapter_or_cls()
+            )
+            binary = inst._binary_name()
+            available = inst.check_available()
         except Exception:
             available = False
 
