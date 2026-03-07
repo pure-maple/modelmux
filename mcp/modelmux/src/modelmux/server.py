@@ -41,6 +41,14 @@ from modelmux.decompose import (
 from modelmux.detect import CallerInfo, detect_caller, get_excluded_providers
 from modelmux.history import HistoryQuery, get_history_stats, log_result, read_history
 from modelmux.log import setup_logging
+from modelmux.orchestrate import (
+    OrchestrateError,
+    apply_action,
+    available_roles,
+    create_task,
+    normalize_action,
+)
+from modelmux.orchestrate_store import OrchestrateStore
 from modelmux.policy import check_policy, load_policy
 from modelmux.routing import smart_route
 from modelmux.status import DispatchStatus, list_active, remove_status, write_status
@@ -67,6 +75,7 @@ mcp = FastMCP(
 
 # Adapter instances (lazy-initialized)
 _adapter_cache: dict[str, BaseAdapter] = {}
+_orchestrate_store: OrchestrateStore | None = None
 
 
 def _auto_route(
@@ -267,6 +276,13 @@ def _get_fallback_candidates(
     """Return available provider names to try as fallback, in order."""
     order = priority or ["codex", "gemini", "claude", "ollama"]
     return [p for p in order if p != current and p not in excluded]
+
+
+def _get_orchestrate_store() -> OrchestrateStore:
+    global _orchestrate_store
+    if _orchestrate_store is None:
+        _orchestrate_store = OrchestrateStore()
+    return _orchestrate_store
 
 
 async def _auto_decompose_task(
@@ -974,6 +990,125 @@ async def mux_history(
         result["costs"] = aggregate_costs(entries)
 
     return json.dumps(result, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+async def mux_orchestrate(
+    action: str,
+    ctx: Context,
+    task: str = "",
+    task_id: str = "",
+    role: str = "",
+    branch: str = "",
+    agent: str = "",
+    limit: int = 20,
+) -> str:
+    """Manage Phase 1 orchestration tasks and lifecycle state.
+
+    Args:
+        action: One of "plan", "assign", "status", "review", "merge".
+        task: Task description used when action="plan".
+        task_id: Stored task id, e.g. "T001". Required for assign unless
+            a branch can identify the task during review/merge.
+        role: Role template used by action="assign".
+        branch: Branch name tracked for review/merge state transitions.
+        agent: Assigned agent name used by action="assign".
+        limit: Max number of tasks returned by status (default 20).
+    """
+    store = _get_orchestrate_store()
+
+    try:
+        normalized = normalize_action(action)
+
+        if normalized == "plan":
+            candidate_id = task_id or store.next_task_id()
+            if store.get(candidate_id):
+                raise OrchestrateError(f"task_id '{candidate_id}' already exists")
+            entry = create_task(task, task_id=candidate_id)
+            saved = store.upsert(entry)
+            await ctx.info(
+                f"Planned {saved.task_id} with suggested role {saved.suggested_role}"
+            )
+            return json.dumps(
+                {
+                    "status": "success",
+                    "action": normalized,
+                    "task": saved.to_dict(),
+                    "roles": available_roles(),
+                    "next_actions": ["assign", "status"],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+
+        if normalized == "status":
+            if task_id:
+                entry = store.get(task_id)
+                if not entry:
+                    raise OrchestrateError(f"Unknown task_id '{task_id}'")
+                payload: dict = {
+                    "status": "success",
+                    "action": normalized,
+                    "task": entry.to_dict(),
+                }
+            elif branch:
+                entry = store.find_by_branch(branch)
+                if not entry:
+                    raise OrchestrateError(f"No task found for branch '{branch}'")
+                payload = {
+                    "status": "success",
+                    "action": normalized,
+                    "task": entry.to_dict(),
+                }
+            else:
+                counts = store.state_counts()
+                tasks = [item.to_dict() for item in store.list(limit=max(limit, 1))]
+                payload = {
+                    "status": "success",
+                    "action": normalized,
+                    "summary": {
+                        "total": sum(counts.values()),
+                        "by_state": counts,
+                    },
+                    "tasks": tasks,
+                    "roles": available_roles(),
+                }
+            return json.dumps(payload, indent=2, ensure_ascii=False)
+
+        entry = store.get(task_id) if task_id else None
+        if entry is None and branch:
+            entry = store.find_by_branch(branch)
+        if entry is None:
+            raise OrchestrateError("task_id or an existing branch is required")
+
+        updated = apply_action(
+            entry,
+            normalized,
+            role=role,
+            agent=agent,
+            branch=branch,
+        )
+        saved = store.upsert(updated)
+        await ctx.info(f"{saved.task_id}: {normalized} -> {saved.state.value}")
+        return json.dumps(
+            {
+                "status": "success",
+                "action": normalized,
+                "task": saved.to_dict(),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    except OrchestrateError as exc:
+        return json.dumps(
+            {
+                "status": "error",
+                "action": action.strip().lower(),
+                "error": str(exc),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
 
 
 @mcp.tool()
