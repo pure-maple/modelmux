@@ -439,6 +439,33 @@ def _read_task(args) -> str:
     return task
 
 
+def _apply_profile(
+    provider: str, model: str, profile_name: str
+) -> tuple[dict, dict[str, str]]:
+    """Load profile and build extra_args + env_overrides."""
+    extra: dict = {}
+    env_overrides: dict[str, str] = {}
+
+    if model:
+        extra["model"] = model
+
+    if profile_name:
+        from modelmux.config import load_config
+
+        config = load_config()
+        prof = config.profiles.get(profile_name)
+        if prof:
+            pc = prof.providers.get(provider)
+            if pc:
+                if pc.model and not model:
+                    extra["model"] = pc.model
+                if pc.wire_api:
+                    extra["wire_api"] = pc.wire_api
+                env_overrides = pc.to_env_overrides(provider)
+
+    return extra, env_overrides
+
+
 def _cmd_dispatch(args: argparse.Namespace) -> None:
     """Run a single dispatch from the CLI and print JSON result."""
     import asyncio
@@ -455,6 +482,7 @@ def _cmd_dispatch(args: argparse.Namespace) -> None:
     workdir = getattr(args, "workdir", ".")
     max_retries = max(1, min(getattr(args, "max_retries", 1), 5))
     failover = getattr(args, "failover", False)
+    profile_name = getattr(args, "profile", "")
 
     all_adapters, available = _get_available_adapters()
 
@@ -472,19 +500,20 @@ def _cmd_dispatch(args: argparse.Namespace) -> None:
 
     adapter = _resolve_adapter(all_adapters, provider)
 
-    extra: dict = {}
-    if model:
-        extra["model"] = model
+    # Build extra_args + env from profile
+    extra, env_overrides = _apply_profile(provider, model, profile_name)
 
-    result = asyncio.run(
-        adapter.run(
-            prompt=task,
-            workdir=workdir,
-            sandbox=sandbox,
-            timeout=timeout,
-            extra_args=extra if extra else None,
-        )
-    )
+    run_kwargs = {
+        "prompt": task,
+        "workdir": workdir,
+        "sandbox": sandbox,
+        "timeout": timeout,
+        "extra_args": extra if extra else None,
+    }
+    if env_overrides:
+        run_kwargs["env_overrides"] = env_overrides
+
+    result = asyncio.run(adapter.run(**run_kwargs))
 
     # Same-provider retry with exponential backoff
     if result.status in ("error", "timeout") and max_retries > 1:
@@ -495,15 +524,7 @@ def _cmd_dispatch(args: argparse.Namespace) -> None:
                 file=sys.stderr,
             )
             time.sleep(backoff)
-            result = asyncio.run(
-                adapter.run(
-                    prompt=task,
-                    workdir=workdir,
-                    sandbox=sandbox,
-                    timeout=timeout,
-                    extra_args=extra if extra else None,
-                )
-            )
+            result = asyncio.run(adapter.run(**run_kwargs))
             if result.status not in ("error", "timeout"):
                 break
 
@@ -564,6 +585,7 @@ def _cmd_broadcast(args: argparse.Namespace) -> None:
     timeout = getattr(args, "timeout", 300)
     workdir = getattr(args, "workdir", ".")
     do_compare = getattr(args, "compare", False)
+    profile_name = getattr(args, "profile", "")
 
     all_adapters, available = _get_available_adapters()
 
@@ -581,24 +603,22 @@ def _cmd_broadcast(args: argparse.Namespace) -> None:
     else:
         targets = available
 
-    extra: dict = {}
-    if model:
-        extra["model"] = model
-
     async def run_all():
-        tasks = []
+        coros = []
         for name in targets:
             adapter = _resolve_adapter(all_adapters, name)
-            tasks.append(
-                adapter.run(
-                    prompt=task,
-                    workdir=workdir,
-                    sandbox=sandbox,
-                    timeout=timeout,
-                    extra_args=extra if extra else None,
-                )
-            )
-        return await asyncio.gather(*tasks, return_exceptions=True)
+            extra, env_ov = _apply_profile(name, model, profile_name)
+            kwargs: dict = {
+                "prompt": task,
+                "workdir": workdir,
+                "sandbox": sandbox,
+                "timeout": timeout,
+                "extra_args": extra if extra else None,
+            }
+            if env_ov:
+                kwargs["env_overrides"] = env_ov
+            coros.append(adapter.run(**kwargs))
+        return await asyncio.gather(*coros, return_exceptions=True)
 
     results_raw = asyncio.run(run_all())
 
@@ -970,6 +990,11 @@ def main() -> None:
         help="Max attempts for same provider (default: 1, max: 5)",
     )
     disp_p.add_argument(
+        "--profile",
+        default="",
+        help="Named profile (e.g., 'budget', 'china')",
+    )
+    disp_p.add_argument(
         "--failover",
         action="store_true",
         help="Try other providers if the primary one fails",
@@ -1009,6 +1034,11 @@ def main() -> None:
         "-w",
         default=".",
         help="Working directory (default: current dir)",
+    )
+    bcast_p.add_argument(
+        "--profile",
+        default="",
+        help="Named profile (e.g., 'budget', 'china')",
     )
     bcast_p.add_argument(
         "--compare",

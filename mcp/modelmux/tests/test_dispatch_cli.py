@@ -29,6 +29,7 @@ def _dispatch_ns(**overrides):
         "task": ["test"],
         "max_retries": 1,
         "failover": False,
+        "profile": "",
     }
     defaults.update(overrides)
     for k, v in defaults.items():
@@ -47,6 +48,7 @@ def _broadcast_ns(**overrides):
         "workdir": ".",
         "task": ["test"],
         "compare": False,
+        "profile": "",
     }
     defaults.update(overrides)
     for k, v in defaults.items():
@@ -415,6 +417,37 @@ def test_broadcast_all_fail_exits_1(capsys):
 
 
 # ── profile tests ──
+
+
+def test_dispatch_with_profile(capsys):
+    """dispatch --profile should apply profile model override."""
+    from modelmux.cli import _cmd_dispatch
+    from modelmux.config import MuxConfig, Profile, ProviderConfig
+
+    ns = _dispatch_ns(task=["test"], profile="budget")
+    fake_result = AdapterResult(
+        run_id="r8", provider="codex", status="success", output="ok"
+    )
+    mock_adapter = _make_adapter(available=True, result=fake_result)
+    config = MuxConfig(
+        profiles={
+            "budget": Profile(
+                providers={"codex": ProviderConfig(model="gpt-4.1-mini")},
+            ),
+        },
+    )
+
+    with (
+        patch(
+            "modelmux.adapters.get_all_adapters",
+            return_value={"codex": mock_adapter},
+        ),
+        patch("modelmux.config.load_config", return_value=config),
+    ):
+        _cmd_dispatch(ns)
+
+    call_kwargs = mock_adapter.run.call_args[1]
+    assert call_kwargs["extra_args"]["model"] == "gpt-4.1-mini"
 
 
 def test_profile_list_empty(capsys):
