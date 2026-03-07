@@ -15,6 +15,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from dataclasses import asdict, dataclass, field
@@ -137,8 +138,6 @@ def run_benchmark(
     sandbox: str = "read-only",
 ) -> BenchmarkReport:
     """Run benchmark suite and return report."""
-    import shutil
-
     from modelmux.adapters import ADAPTERS, get_all_adapters
 
     all_adapters = get_all_adapters()
@@ -157,8 +156,7 @@ def run_benchmark(
                     if isinstance(adapter_or_cls, type)
                     else adapter_or_cls
                 )
-                binary = inst._binary_name()
-                if shutil.which(binary):
+                if inst.check_available():
                     test_providers.append(name)
             except Exception:
                 continue
@@ -190,11 +188,13 @@ def run_benchmark(
                 )
 
                 start = time.time()
-                adapter_result = adapter.run(
-                    task=task_info["task"],
-                    workdir=workdir,
-                    sandbox=sandbox,
-                    timeout=timeout,
+                adapter_result = asyncio.run(
+                    adapter.run(
+                        prompt=task_info["task"],
+                        workdir=workdir,
+                        sandbox=sandbox,
+                        timeout=timeout,
+                    )
                 )
                 result.duration_seconds = round(time.time() - start, 2)
                 result.status = adapter_result.status

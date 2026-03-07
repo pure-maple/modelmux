@@ -67,9 +67,10 @@ def _cmd_check(args: argparse.Namespace) -> None:
     for name, cls in ADAPTERS.items():
         adapter = cls()
         binary = adapter._binary_name()
-        path = shutil.which(binary)
+        path = shutil.which(binary) if binary else None
+        is_available = adapter.check_available()
         providers_data[name] = {
-            "available": path is not None,
+            "available": is_available,
             "binary": binary,
             "path": path or "",
         }
@@ -99,9 +100,10 @@ def _cmd_check(args: argparse.Namespace) -> None:
         print("Providers")
         for name, info in providers_data.items():
             if info["available"]:
-                print(f"  \033[0;32m[+]\033[0m {name:8s} {info['path']}")
+                detail = info["path"] or "API key set"
+                print(f"  \033[0;32m[+]\033[0m {name:10s} {detail}")
             else:
-                print(f"  \033[1;33m[-]\033[0m {name:8s} not found")
+                print(f"  \033[1;33m[-]\033[0m {name:10s} not found")
 
         # Config summary
         try:

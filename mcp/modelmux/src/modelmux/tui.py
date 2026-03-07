@@ -28,7 +28,7 @@ from textual.widgets import (
 
 from modelmux.init_wizard import PROVIDER_INFO
 
-PROVIDERS = ["codex", "gemini", "claude", "ollama"]
+PROVIDERS = ["codex", "gemini", "claude", "ollama", "dashscope"]
 
 
 def _load_raw(path: Path) -> dict:
@@ -300,12 +300,21 @@ class ConfigApp(App):
     def _render_overview(self) -> str:
         lines = ["[bold cyan]CLI Availability[/]"]
         for name in PROVIDERS:
-            binary = PROVIDER_INFO[name]["binary"]
-            path = shutil.which(binary)
-            if path:
-                lines.append(f"  [green]+[/] {name:8s} {path}")
-            else:
-                lines.append(f"  [yellow]-[/] {name:8s} not found")
+            binary = PROVIDER_INFO[name].get("binary")
+            env_key = PROVIDER_INFO[name].get("env_key")
+            if binary:
+                path = shutil.which(binary)
+                if path:
+                    lines.append(f"  [green]+[/] {name:10s} {path}")
+                else:
+                    lines.append(f"  [yellow]-[/] {name:10s} not found")
+            elif env_key:
+                import os
+
+                if os.environ.get(env_key, ""):
+                    lines.append(f"  [green]+[/] {name:10s} API key set")
+                else:
+                    lines.append(f"  [yellow]-[/] {name:10s} {env_key} not set")
 
         lines.append("")
         lines.append("[bold cyan]Configuration[/]")

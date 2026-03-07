@@ -7,6 +7,7 @@ Generates profiles.toml and optionally policy.json.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -17,13 +18,35 @@ _CYAN = "\033[0;36m"
 _BOLD = "\033[1m"
 _NC = "\033[0m"
 
-PROVIDERS = ["codex", "gemini", "claude", "ollama"]
+PROVIDERS = ["codex", "gemini", "claude", "ollama", "dashscope"]
 
 PROVIDER_INFO = {
-    "codex": {"binary": "codex", "desc": "Codex CLI (code, algorithms)"},
-    "gemini": {"binary": "gemini", "desc": "Gemini CLI (frontend, design)"},
-    "claude": {"binary": "claude", "desc": "Claude Code (architecture, reasoning)"},
-    "ollama": {"binary": "ollama", "desc": "Ollama (DeepSeek, Llama, Qwen)"},
+    "codex": {
+        "binary": "codex",
+        "desc": "Codex CLI (code, algorithms)",
+        "install": "npm install -g @openai/codex",
+    },
+    "gemini": {
+        "binary": "gemini",
+        "desc": "Gemini CLI (frontend, design)",
+        "install": "npm install -g @anthropic-ai/gemini-cli",
+    },
+    "claude": {
+        "binary": "claude",
+        "desc": "Claude Code (architecture, reasoning)",
+        "install": "npm install -g @anthropic-ai/claude-code",
+    },
+    "ollama": {
+        "binary": "ollama",
+        "desc": "Ollama (DeepSeek, Llama, Qwen)",
+        "install": "https://ollama.com/download",
+    },
+    "dashscope": {
+        "binary": None,
+        "desc": "DashScope API (Kimi, Qwen, MiniMax)",
+        "install": "Set DASHSCOPE_CODING_API_KEY env var",
+        "env_key": "DASHSCOPE_CODING_API_KEY",
+    },
 }
 
 
@@ -66,10 +89,17 @@ def _ask_choice(prompt: str, choices: list[str], default: str = "") -> str:
 
 
 def detect_clis() -> dict[str, bool]:
-    """Detect which model CLIs are installed."""
+    """Detect which model CLIs / API keys are available."""
     available = {}
     for name, info in PROVIDER_INFO.items():
-        available[name] = shutil.which(info["binary"]) is not None
+        binary = info.get("binary")
+        env_key = info.get("env_key")
+        if binary:
+            available[name] = shutil.which(binary) is not None
+        elif env_key:
+            available[name] = bool(os.environ.get(env_key, ""))
+        else:
+            available[name] = False
     return available
 
 
@@ -80,20 +110,30 @@ def run_wizard(scope: str = "user") -> None:
     print(f"{_BOLD}{'=' * 50}{_NC}")
 
     # Step 1: Detect CLIs
-    _header("Step 1: Detecting installed CLIs")
+    _header("Step 1: Detecting available providers")
     available = detect_clis()
     installed = []
+    missing = []
     for name, is_available in available.items():
         status = f"{_GREEN}found{_NC}" if is_available else f"{_YELLOW}not found{_NC}"
         desc = PROVIDER_INFO[name]["desc"]
-        print(f"  {name:8s} {status:30s}  {desc}")
+        print(f"  {name:10s} {status:30s}  {desc}")
         if is_available:
             installed.append(name)
+        else:
+            missing.append(name)
+
+    if missing:
+        print(f"\n  {_CYAN}Install missing providers:{_NC}")
+        for name in missing:
+            hint = PROVIDER_INFO[name].get("install", "")
+            if hint:
+                print(f"    {name:10s} {hint}")
 
     if not installed:
-        msg = "No model CLIs detected. Install at least one."
+        msg = "No providers detected. Install at least one."
         print(f"\n  {_YELLOW}{msg}{_NC}")
-        print("  You can still generate a config and install CLIs later.")
+        print("  You can still generate a config and install later.")
         installed = ["codex"]  # Default for config generation
 
     # Step 2: Default provider
@@ -120,8 +160,32 @@ def run_wizard(scope: str = "user") -> None:
             if not _ask_yn("Add another rule?", default=False):
                 break
 
-    # Step 4: Policy
-    _header("Step 4: Safety policy (optional)")
+    # Step 4: Profiles
+    _header("Step 4: Custom profiles (optional)")
+    profiles: list[dict] = []
+    if _ask_yn("Create a named profile (e.g. budget, china)?", default=False):
+        while True:
+            pname = _ask("Profile name", "")
+            if not pname:
+                break
+            pdesc = _ask("Description", "")
+            prov_configs: dict[str, dict] = {}
+            print(f"  Configure providers for profile '{pname}':")
+            for prov in installed:
+                if _ask_yn(f"  Set model for {prov}?", default=False):
+                    pmodel = _ask(f"    Model name for {prov}", "")
+                    if pmodel:
+                        prov_configs[prov] = {"model": pmodel}
+            if prov_configs or pdesc:
+                profiles.append(
+                    {"name": pname, "description": pdesc, "providers": prov_configs}
+                )
+                _info(f"Profile '{pname}' created")
+            if not _ask_yn("Add another profile?", default=False):
+                break
+
+    # Step 5: Policy
+    _header("Step 5: Safety policy (optional)")
     policy_config = {}
     if _ask_yn("Configure rate limits and safety policy?", default=False):
         max_per_hour = _ask("Max calls per hour (0=unlimited)", "0")
@@ -135,8 +199,8 @@ def run_wizard(scope: str = "user") -> None:
         if block_full:
             policy_config["blocked_sandboxes"] = ["full"]
 
-    # Step 5: Scope
-    _header("Step 5: Config location")
+    # Step 6: Scope
+    _header("Step 6: Config location")
     if scope == "auto":
         scope = _ask_choice(
             "Where to save config?",
@@ -153,7 +217,7 @@ def run_wizard(scope: str = "user") -> None:
 
     # Generate TOML config
     _header("Generating configuration")
-    toml_lines = _generate_toml(default_provider, routing_rules)
+    toml_lines = _generate_toml(default_provider, routing_rules, profiles)
     config_path = config_dir / "profiles.toml"
 
     if config_path.exists():
@@ -181,6 +245,8 @@ def run_wizard(scope: str = "user") -> None:
     print(f"  Default provider: {default_provider}")
     if routing_rules:
         print(f"  Custom routing rules: {len(routing_rules)}")
+    if profiles:
+        print(f"  Profiles: {', '.join(p['name'] for p in profiles)}")
     if policy_config:
         print("  Policy configured: yes")
     print("\n  Test it with:")
@@ -192,6 +258,7 @@ def run_wizard(scope: str = "user") -> None:
 def _generate_toml(
     default_provider: str,
     routing_rules: list[dict],
+    profiles: list[dict] | None = None,
 ) -> str:
     """Generate a TOML configuration string."""
     lines = [
@@ -219,15 +286,34 @@ def _generate_toml(
             "auto_exclude_caller = true",
             '# caller_override = ""  # Force: "claude" / "codex" / "gemini"',
             "",
-            "# Profiles for custom model/API configuration",
-            "# [profiles.budget]",
-            '# description = "Use cheaper models"',
-            "# [profiles.budget.providers.codex]",
-            '# model = "gpt-4.1-mini"',
-            "# [profiles.budget.providers.ollama]",
-            '# model = "deepseek-r1:1.5b"',
-            "",
         ]
     )
+
+    # User-created profiles
+    if profiles:
+        for prof in profiles:
+            name = prof["name"]
+            lines.append(f"[profiles.{name}]")
+            if prof.get("description"):
+                lines.append(f'description = "{prof["description"]}"')
+            for prov, pc in prof.get("providers", {}).items():
+                lines.append(f"[profiles.{name}.providers.{prov}]")
+                if pc.get("model"):
+                    lines.append(f'model = "{pc["model"]}"')
+            lines.append("")
+    else:
+        # Show commented-out example
+        lines.extend(
+            [
+                "# Profiles for custom model/API configuration",
+                "# [profiles.budget]",
+                '# description = "Use cheaper models"',
+                "# [profiles.budget.providers.codex]",
+                '# model = "gpt-4.1-mini"',
+                "# [profiles.budget.providers.ollama]",
+                '# model = "deepseek-r1:1.5b"',
+                "",
+            ]
+        )
 
     return "\n".join(lines) + "\n"

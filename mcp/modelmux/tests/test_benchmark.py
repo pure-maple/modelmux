@@ -1,7 +1,7 @@
 """Tests for the benchmark suite."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -101,15 +101,14 @@ class TestRunBenchmark:
 
         mock_adapter = MagicMock()
         mock_adapter._binary_name.return_value = "codex"
-        mock_adapter.run.return_value = mock_result
+        mock_adapter.run = AsyncMock(return_value=mock_result)
 
         with patch("modelmux.adapters.get_all_adapters", return_value={"codex": mock_adapter}):
             with patch("modelmux.adapters.ADAPTERS", {"codex": type(mock_adapter)}):
-                with patch("shutil.which", return_value="/usr/bin/codex"):
-                    report = run_benchmark(
-                        providers=["codex"],
-                        task_names=["code_review"],
-                    )
+                report = run_benchmark(
+                    providers=["codex"],
+                    task_names=["code_review"],
+                )
 
         assert len(report.results) == 1
         r = report.results[0]
@@ -120,7 +119,7 @@ class TestRunBenchmark:
     def test_run_with_failing_adapter(self):
         mock_adapter = MagicMock()
         mock_adapter._binary_name.return_value = "failing"
-        mock_adapter.run.side_effect = RuntimeError("connection failed")
+        mock_adapter.run = AsyncMock(side_effect=RuntimeError("connection failed"))
 
         with patch("modelmux.adapters.get_all_adapters", return_value={"failing": mock_adapter}):
             with patch("modelmux.adapters.ADAPTERS", {"failing": type(mock_adapter)}):
