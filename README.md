@@ -226,13 +226,19 @@ modelmux dashboard    # Web monitoring dashboard (http://127.0.0.1:41521)
 modelmux dispatch "Review this code"                       # auto-route
 modelmux dispatch -p codex -m gpt-5.4 "Fix the bug"       # explicit provider
 modelmux dispatch -p gemini --max-retries 3 "Analyze"      # with retry
+modelmux dispatch --failover "Fix this bug"                # auto-failover
 cat diff.txt | modelmux dispatch -p auto                   # pipe from stdin
 modelmux broadcast "Review this API" --providers codex gemini  # parallel
+modelmux broadcast --compare "Best data structure?"        # with analysis
 
-# Management
+# Feedback & management
+modelmux feedback --run-id abc --provider codex --rating 5 # rate results
+modelmux feedback --list                                   # view ratings
 modelmux check        # Check CLI availability
+modelmux check --json # JSON output for CI
 modelmux status -w    # Live dispatch monitor
 modelmux history --stats --costs   # Statistics with cost breakdown
+modelmux history --source cli-dispatch                     # filter by source
 modelmux benchmark    # Run provider benchmark suite
 modelmux export --format csv       # Export to CSV/JSON/Markdown
 

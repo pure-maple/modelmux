@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.28.0 (2026-03-07)
+
+### New Features
+- **`modelmux broadcast` CLI subcommand**: Parallel multi-provider dispatch from command line with JSON output
+- **`modelmux feedback` CLI subcommand**: Submit ratings (`--run-id`, `--provider`, `--rating 1-5`) or view recent feedback (`--list`) from the command line
+- **CLI dispatch `--failover`**: Try other providers when the primary one fails, matching MCP tool behavior
+- **CLI broadcast `--compare`**: Structured comparison analysis (agreement score, speed ranking, unique terms)
+- **CLI dispatch `--max-retries`**: Same-provider retry with exponential backoff (2s, 4s, 8s, 16s), max 5
+- **Dashboard SSE real-time updates**: `/api/events` endpoint pushes active/stats/history every 2s; frontend auto-connects with polling fallback
+- **`modelmux check --json`**: Structured JSON output for scripts and CI
+- **History source tracking**: CLI dispatches tagged as `cli-dispatch`/`cli-broadcast`; `modelmux history --source` filter
+
+### Improvements
+- **MCP `mux_dispatch` retry**: `max_retries` parameter with exponential backoff before failover (default 1, max 5)
+- **History source tags**: `[C]`/`[CB]`/`[B]`/`[A]` icons in history output distinguish dispatch sources
+
+### Stats
+- 459 tests passing (+18 new: CLI dispatch/broadcast/failover/compare/feedback + dashboard SSE)
+
 ## v0.27.0 (2026-03-07)
 
 ### New Features

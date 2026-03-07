@@ -1,3 +1,3 @@
 """modelmux — model multiplexer for cross-platform multi-model AI collaboration."""
 
-__version__ = "0.27.0"
+__version__ = "0.28.0"

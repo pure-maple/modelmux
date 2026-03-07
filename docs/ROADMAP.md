@@ -1,6 +1,6 @@
 # modelmux 功能规划
 
-## 当前状态 (v0.27.0)
+## 当前状态 (v0.28.0)
 
 ### MCP 工具
 | 工具 | 功能 |
@@ -23,7 +23,7 @@
 | POST / (tasks/sendSubscribe) | SSE 流式推送（支持 Push Notification） |
 
 ### CLI 命令
-`modelmux` / `a2a-server` / `dispatch` / `init` / `config` / `check` / `status` / `history` / `export` / `benchmark` / `dashboard` / `version`
+`modelmux` / `a2a-server` / `dispatch` / `broadcast` / `feedback` / `init` / `config` / `check` / `status` / `history` / `export` / `benchmark` / `dashboard` / `version`
 
 ### Provider 适配器
 codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
@@ -95,6 +95,9 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 - [ ] VS Code 扩展（MCP 客户端 + Dashboard WebView）
 - [x] GitHub Actions 集成（CI 中使用 modelmux 进行代码审查）
 - [x] `modelmux dispatch` CLI 子命令（JSON 输出，脚本/CI 友好）
+- [x] `modelmux broadcast` / `feedback` CLI 子命令
+- [x] Dashboard SSE 实时推送（替代轮询）
+- [x] CLI dispatch `--failover` + `--max-retries` + broadcast `--compare`
 - [x] 路由数据 TTL 缓存 + Provider 健康度摘要 + 配置校验
 
 ---
@@ -114,4 +117,4 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 
 ---
 
-*最后更新: 2026-03-07 (v0.27.0, 441 tests)*
+*最后更新: 2026-03-07 (v0.28.0, 459 tests)*

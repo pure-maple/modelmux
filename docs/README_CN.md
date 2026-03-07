@@ -224,13 +224,19 @@ modelmux dashboard    # Web 监控面板（http://127.0.0.1:41521）
 modelmux dispatch "审查这段代码"                            # 智能路由
 modelmux dispatch -p codex -m gpt-5.4 "修复这个 bug"       # 指定 provider
 modelmux dispatch -p gemini --max-retries 3 "分析架构"      # 带重试
+modelmux dispatch --failover "修复这个 bug"                 # 自动容错
 cat diff.txt | modelmux dispatch -p auto                   # 从 stdin 读取
 modelmux broadcast "审查 API" --providers codex gemini      # 并行广播
+modelmux broadcast --compare "最佳数据结构？"               # 带对比分析
 
-# 管理
+# 反馈与管理
+modelmux feedback --run-id abc --provider codex --rating 5 # 评分
+modelmux feedback --list                                   # 查看评分
 modelmux check        # 检查 CLI 可用性
+modelmux check --json # JSON 输出（适合 CI）
 modelmux status -w    # 实时分发监控
 modelmux history --stats --costs   # 统计 + 成本分析
+modelmux history --source cli-dispatch                     # 按来源过滤
 modelmux benchmark    # 运行 provider 基准测试
 modelmux export --format csv       # 导出历史
 
