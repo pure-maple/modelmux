@@ -71,9 +71,15 @@ def test_failover_on_execution_error():
         return success_result
 
     with (
-        patch("modelmux.adapters.codex.CodexAdapter.check_available", return_value=True),
-        patch("modelmux.adapters.gemini.GeminiAdapter.check_available", return_value=True),
-        patch("modelmux.adapters.claude.ClaudeAdapter.check_available", return_value=False),
+        patch(
+            "modelmux.adapters.codex.CodexAdapter.check_available", return_value=True
+        ),
+        patch(
+            "modelmux.adapters.gemini.GeminiAdapter.check_available", return_value=True
+        ),
+        patch(
+            "modelmux.adapters.claude.ClaudeAdapter.check_available", return_value=False
+        ),
         patch("modelmux.adapters.base.BaseAdapter.run", mock_run),
     ):
         raw = asyncio.run(
@@ -86,7 +92,9 @@ def test_failover_on_execution_error():
             )
         )
         result = json.loads(raw)
-        assert result["provider"] == "gemini", f"Expected gemini, got {result['provider']}"
+        assert result["provider"] == "gemini", (
+            f"Expected gemini, got {result['provider']}"
+        )
         assert result["status"] == "success"
         assert result["failover_from"] == "codex"
         assert call_count["codex"] == 1
@@ -109,7 +117,9 @@ def test_no_failover_when_disabled():
         return error_result
 
     with (
-        patch("modelmux.adapters.codex.CodexAdapter.check_available", return_value=True),
+        patch(
+            "modelmux.adapters.codex.CodexAdapter.check_available", return_value=True
+        ),
         patch("modelmux.adapters.base.BaseAdapter.run", mock_run),
     ):
         raw = asyncio.run(
@@ -142,7 +152,9 @@ def test_no_failover_with_session_id():
         return error_result
 
     with (
-        patch("modelmux.adapters.codex.CodexAdapter.check_available", return_value=True),
+        patch(
+            "modelmux.adapters.codex.CodexAdapter.check_available", return_value=True
+        ),
         patch("modelmux.adapters.base.BaseAdapter.run", mock_run),
     ):
         raw = asyncio.run(
@@ -159,6 +171,184 @@ def test_no_failover_with_session_id():
         assert result["status"] == "error"
         assert "failover_from" not in result
     print("[PASS] no failover with session_id")
+
+
+def test_retry_same_provider_on_error():
+    """max_retries > 1 should retry the same provider before failover."""
+    ctx = make_mock_ctx()
+
+    call_count = [0]
+
+    async def mock_run(self, **kwargs):
+        call_count[0] += 1
+        if call_count[0] < 3:
+            return AdapterResult(
+                run_id="abc",
+                provider="codex",
+                status="error",
+                error="transient failure",
+            )
+        return AdapterResult(
+            run_id="abc",
+            provider="codex",
+            status="success",
+            output="worked on attempt 3",
+            duration_seconds=1.0,
+        )
+
+    with (
+        patch(
+            "modelmux.adapters.codex.CodexAdapter.check_available",
+            return_value=True,
+        ),
+        patch("modelmux.adapters.base.BaseAdapter.run", mock_run),
+        patch("asyncio.sleep", new_callable=AsyncMock),
+    ):
+        raw = asyncio.run(
+            mux_dispatch(
+                provider="codex",
+                task="test retry",
+                ctx=ctx,
+                workdir="/tmp",
+                max_retries=3,
+                failover=False,
+            )
+        )
+        result = json.loads(raw)
+        assert result["status"] == "success"
+        assert call_count[0] == 3
+    print("[PASS] retry same provider on error")
+
+
+def test_retry_no_retry_when_max_retries_1():
+    """max_retries=1 (default) should not retry."""
+    ctx = make_mock_ctx()
+
+    call_count = [0]
+
+    async def mock_run(self, **kwargs):
+        call_count[0] += 1
+        return AdapterResult(
+            run_id="abc",
+            provider="codex",
+            status="timeout",
+            error="Timed out",
+        )
+
+    with (
+        patch(
+            "modelmux.adapters.codex.CodexAdapter.check_available",
+            return_value=True,
+        ),
+        patch("modelmux.adapters.base.BaseAdapter.run", mock_run),
+    ):
+        raw = asyncio.run(
+            mux_dispatch(
+                provider="codex",
+                task="test no retry",
+                ctx=ctx,
+                workdir="/tmp",
+                max_retries=1,
+                failover=False,
+            )
+        )
+        result = json.loads(raw)
+        assert result["status"] == "timeout"
+        assert call_count[0] == 1
+    print("[PASS] no retry when max_retries=1")
+
+
+def test_retry_then_failover():
+    """After retries exhaust, should still failover to other providers."""
+    ctx = make_mock_ctx()
+
+    async def mock_run(self, **kwargs):
+        if self.provider_name == "codex":
+            return AdapterResult(
+                run_id="abc",
+                provider="codex",
+                status="error",
+                error="always fails",
+            )
+        return AdapterResult(
+            run_id="def",
+            provider="gemini",
+            status="success",
+            output="gemini saved us",
+            duration_seconds=1.0,
+        )
+
+    with (
+        patch(
+            "modelmux.adapters.codex.CodexAdapter.check_available",
+            return_value=True,
+        ),
+        patch(
+            "modelmux.adapters.gemini.GeminiAdapter.check_available",
+            return_value=True,
+        ),
+        patch(
+            "modelmux.adapters.claude.ClaudeAdapter.check_available",
+            return_value=False,
+        ),
+        patch("modelmux.adapters.base.BaseAdapter.run", mock_run),
+        patch("asyncio.sleep", new_callable=AsyncMock),
+    ):
+        raw = asyncio.run(
+            mux_dispatch(
+                provider="codex",
+                task="retry then failover",
+                ctx=ctx,
+                workdir="/tmp",
+                max_retries=2,
+                failover=True,
+            )
+        )
+        result = json.loads(raw)
+        assert result["status"] == "success"
+        assert result["provider"] == "gemini"
+        assert result["failover_from"] == "codex"
+    print("[PASS] retry then failover")
+
+
+def test_retry_clamped_to_5():
+    """max_retries > 5 should be clamped to 5."""
+    ctx = make_mock_ctx()
+
+    call_count = [0]
+
+    async def mock_run(self, **kwargs):
+        call_count[0] += 1
+        return AdapterResult(
+            run_id="abc",
+            provider="codex",
+            status="error",
+            error="keeps failing",
+        )
+
+    with (
+        patch(
+            "modelmux.adapters.codex.CodexAdapter.check_available",
+            return_value=True,
+        ),
+        patch("modelmux.adapters.base.BaseAdapter.run", mock_run),
+        patch("asyncio.sleep", new_callable=AsyncMock),
+    ):
+        raw = asyncio.run(
+            mux_dispatch(
+                provider="codex",
+                task="test clamp",
+                ctx=ctx,
+                workdir="/tmp",
+                max_retries=10,
+                failover=False,
+            )
+        )
+        result = json.loads(raw)
+        assert result["status"] == "error"
+        # 1 initial + 4 retries = 5 total (clamped from 10)
+        assert call_count[0] == 5
+    print("[PASS] retry clamped to 5")
 
 
 def test_progress_notification_sent():
@@ -178,7 +368,9 @@ def test_progress_notification_sent():
         return success_result
 
     with (
-        patch("modelmux.adapters.codex.CodexAdapter.check_available", return_value=True),
+        patch(
+            "modelmux.adapters.codex.CodexAdapter.check_available", return_value=True
+        ),
         patch("modelmux.adapters.base.BaseAdapter.run", mock_run),
     ):
         asyncio.run(
@@ -191,8 +383,9 @@ def test_progress_notification_sent():
         )
         # Should have been called with dispatch progress
         info_calls = [str(c) for c in ctx.info.call_args_list]
-        assert any("codex" in c.lower() for c in info_calls), \
+        assert any("codex" in c.lower() for c in info_calls), (
             f"Expected progress info about codex, got: {info_calls}"
+        )
     print("[PASS] progress notification sent")
 
 
@@ -204,6 +397,10 @@ def main():
         test_failover_on_execution_error,
         test_no_failover_when_disabled,
         test_no_failover_with_session_id,
+        test_retry_same_provider_on_error,
+        test_retry_no_retry_when_max_retries_1,
+        test_retry_then_failover,
+        test_retry_clamped_to_5,
         test_progress_notification_sent,
     ]
 

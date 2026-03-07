@@ -1,6 +1,6 @@
 # modelmux 功能规划
 
-## 当前状态 (v0.26.0+)
+## 当前状态 (v0.27.0)
 
 ### MCP 工具
 | 工具 | 功能 |
@@ -23,13 +23,13 @@
 | POST / (tasks/sendSubscribe) | SSE 流式推送（支持 Push Notification） |
 
 ### CLI 命令
-`modelmux` / `a2a-server` / `init` / `config` / `check` / `status` / `history` / `export` / `benchmark` / `dashboard` / `version`
+`modelmux` / `a2a-server` / `dispatch` / `init` / `config` / `check` / `status` / `history` / `export` / `benchmark` / `dashboard` / `version`
 
 ### Provider 适配器
 codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 
 ### 基础设施
-审计日志 / 策略引擎 / Profile 系统 / 实时状态追踪 / TUI 配置面板 / 流式输出 / 智能路由 v4（关键词+历史+benchmark+反馈）/ 成本追踪 / Web Dashboard（趋势图表 + 协作可视化 + 反馈面板）/ Webhook 通知 / 导出报告 / 基准测试 / A2A 联邦 POC / 结构化日志
+审计日志 / 策略引擎 / Profile 系统 / 实时状态追踪 / TUI 配置面板 / 流式输出 / 智能路由 v4（关键词+历史+benchmark+反馈+TTL缓存）/ 成本追踪 / Web Dashboard（趋势图表 + 协作可视化 + 反馈面板）/ Webhook 通知 / 导出报告 / 基准测试 / A2A 联邦 POC / 结构化日志 / GitHub Actions CI 集成
 
 ---
 
@@ -93,7 +93,9 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 
 ### 生态集成
 - [ ] VS Code 扩展（MCP 客户端 + Dashboard WebView）
-- [ ] GitHub Actions 集成（CI 中使用 modelmux 进行代码审查）
+- [x] GitHub Actions 集成（CI 中使用 modelmux 进行代码审查）
+- [x] `modelmux dispatch` CLI 子命令（JSON 输出，脚本/CI 友好）
+- [x] 路由数据 TTL 缓存 + Provider 健康度摘要 + 配置校验
 
 ---
 
@@ -112,4 +114,4 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 
 ---
 
-*最后更新: 2026-03-07 (v0.26.0+, 417 tests)*
+*最后更新: 2026-03-07 (v0.27.0, 441 tests)*

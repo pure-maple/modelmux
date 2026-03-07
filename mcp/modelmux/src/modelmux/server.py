@@ -431,6 +431,7 @@ async def mux_dispatch(
     profile: str = "",
     reasoning_effort: str = "",
     failover: bool = True,
+    max_retries: int = 1,
     auto_decompose: bool = False,
 ) -> str:
     """Dispatch a task to an AI model CLI and return the result.
@@ -457,6 +458,10 @@ async def mux_dispatch(
         failover: Auto-retry with another provider on execution error
             (default True). Disabled when session_id is set (sessions
             are provider-specific).
+        max_retries: Maximum attempts for the same provider before failover
+            (default 1 = single attempt, no retry). Uses exponential
+            backoff: 2s, 4s, 8s between retries. Useful for transient
+            errors (timeouts, rate limits). Max value: 5.
         auto_decompose: Automatically decompose complex tasks into subtasks,
             route each to the best-suited provider, and merge results.
             Uses the selected provider as planner. Default False.
@@ -608,6 +613,9 @@ async def mux_dispatch(
 
     await ctx.info(f"Dispatching to {actual_provider}...")
 
+    # Clamp max_retries to [1, 5]
+    effective_retries = max(1, min(max_retries, 5))
+
     result = await adapter.run(
         prompt=task,
         workdir=resolved_workdir,
@@ -619,7 +627,39 @@ async def mux_dispatch(
         on_progress=on_progress,
     )
 
-    # Execution failover
+    # Same-provider retry with exponential backoff
+    should_retry = (
+        result.status in ("error", "timeout")
+        and effective_retries > 1
+        and not session_id
+    )
+    if should_retry:
+        for attempt in range(2, effective_retries + 1):
+            backoff = 2 ** (attempt - 1)  # 2s, 4s, 8s, 16s
+            await ctx.info(
+                f"Attempt {attempt}/{effective_retries}: "
+                f"retrying {actual_provider} in {backoff}s..."
+            )
+            await asyncio.sleep(backoff)
+
+            dispatch_status.status = "running"
+            dispatch_status.output_preview = f"retry #{attempt}"
+            write_status(dispatch_status)
+
+            result = await adapter.run(
+                prompt=task,
+                workdir=resolved_workdir,
+                sandbox=sandbox,
+                session_id=session_id,
+                timeout=timeout,
+                extra_args=extra_args if extra_args else None,
+                env_overrides=env_overrides if env_overrides else None,
+                on_progress=on_progress,
+            )
+            if result.status not in ("error", "timeout"):
+                break
+
+    # Execution failover to other providers
     failover_from = ""
     can_failover = failover and result.status == "error" and not session_id
     if can_failover:
