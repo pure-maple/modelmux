@@ -608,3 +608,85 @@ def test_feedback_list_empty(capsys):
 
     captured = capsys.readouterr()
     assert "No feedback" in captured.out
+
+
+# ── history tests ──
+
+
+def _history_ns(**overrides):
+    """Build a namespace for history with sensible defaults."""
+    ns = MagicMock()
+    defaults = {
+        "stats": False,
+        "limit": 10,
+        "provider": "",
+        "hours": 0,
+        "costs": False,
+        "source": "",
+        "json": False,
+    }
+    defaults.update(overrides)
+    for k, v in defaults.items():
+        setattr(ns, k, v)
+    return ns
+
+
+def test_history_json_entries(capsys):
+    """history --json outputs valid JSON with entries."""
+    from modelmux.cli import _cmd_history
+
+    entries = [
+        {"provider": "codex", "status": "success", "ts": 1000, "task": "test"},
+    ]
+    ns = _history_ns(json=True)
+
+    with patch("modelmux.history.read_history", return_value=entries):
+        _cmd_history(ns)
+
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["count"] == 1
+    assert data["entries"][0]["provider"] == "codex"
+
+
+def test_history_json_empty(capsys):
+    """history --json with no entries outputs empty list."""
+    from modelmux.cli import _cmd_history
+
+    ns = _history_ns(json=True)
+
+    with patch("modelmux.history.read_history", return_value=[]):
+        _cmd_history(ns)
+
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["count"] == 0
+    assert data["entries"] == []
+
+
+def test_history_stats_json(capsys):
+    """history --stats --json outputs stats as JSON."""
+    from modelmux.cli import _cmd_history
+
+    stats = {"total": 5, "by_provider": {"codex": {"calls": 5}}}
+    ns = _history_ns(stats=True, json=True)
+
+    with patch("modelmux.history.get_history_stats", return_value=stats):
+        _cmd_history(ns)
+
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["total"] == 5
+
+
+def test_history_no_data(capsys):
+    """history with no entries shows message."""
+    from modelmux.cli import _cmd_history
+
+    ns = _history_ns()
+
+    with patch("modelmux.history.read_history", return_value=[]):
+        _cmd_history(ns)
+
+    captured = capsys.readouterr()
+    assert "No history" in captured.out

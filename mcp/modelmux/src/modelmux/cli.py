@@ -194,15 +194,22 @@ def _cmd_status(args: argparse.Namespace) -> None:
 
 def _cmd_history(args: argparse.Namespace) -> None:
     """Show dispatch history or stats."""
+    import json
     import time
 
     from modelmux.history import HistoryQuery, get_history_stats, read_history
 
     show_costs = getattr(args, "costs", False)
+    use_json = getattr(args, "json", False)
 
     if getattr(args, "stats", False):
         hours = getattr(args, "hours", 0)
         stats = get_history_stats(hours=hours, include_costs=show_costs)
+
+        if use_json:
+            print(json.dumps(stats, indent=2, default=str))
+            return
+
         if not stats.get("total"):
             print("  No history data.")
             return
@@ -218,7 +225,7 @@ def _cmd_history(args: argparse.Namespace) -> None:
             rate = ps.get("success_rate", 0)
             avg = ps.get("avg_duration", 0)
             print(
-                f"  {prov:8s}  "
+                f"  {prov:10s}  "
                 f"{ps['calls']:3d} calls  "
                 f"{rate:5.1f}% success  "
                 f"avg {avg:.1f}s"
@@ -238,7 +245,7 @@ def _cmd_history(args: argparse.Namespace) -> None:
             print(f"  Estimated cost: ${costs['total_cost_usd']:.4f} USD")
             for cp, cd in costs.get("by_provider", {}).items():
                 print(
-                    f"    {cp:8s}  "
+                    f"    {cp:10s}  "
                     f"{cd['calls']:3d} calls  "
                     f"{cd['input_tokens']:,} in / "
                     f"{cd['output_tokens']:,} out  "
@@ -255,6 +262,11 @@ def _cmd_history(args: argparse.Namespace) -> None:
     entries = read_history(
         HistoryQuery(limit=limit, provider=provider, hours=hours, source=source)
     )
+
+    if use_json:
+        data = {"entries": entries, "count": len(entries)}
+        print(json.dumps(data, indent=2, default=str))
+        return
 
     if not entries:
         print("  No history entries found.")
@@ -281,7 +293,7 @@ def _cmd_history(args: argparse.Namespace) -> None:
 
         icon = "\033[0;32m+\033[0m" if status == "success" else "\033[1;31m!\033[0m"
         tag = _SOURCE_TAGS.get(src, "")
-        print(f"  {icon} {ts_str}  {prov:8s} {dur:5.1f}s  {tag}{task_str}")
+        print(f"  {icon} {ts_str}  {prov:10s} {dur:5.1f}s  {tag}{task_str}")
     print()
 
 
@@ -954,6 +966,11 @@ def main() -> None:
         "--source",
         default="",
         help="Filter by source (dispatch, broadcast, cli-dispatch, cli-broadcast)",
+    )
+    hist_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON (for scripts and CI)",
     )
 
     # modelmux benchmark
