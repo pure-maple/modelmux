@@ -117,4 +117,4 @@ codex / gemini / claude / ollama / dashscope / A2A remote / 自定义插件
 
 ---
 
-*最后更新: 2026-03-07 (v0.28.0, 459 tests)*
+*最后更新: 2026-03-07 (v0.28.0+, 564 tests)*

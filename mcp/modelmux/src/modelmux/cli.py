@@ -867,6 +867,62 @@ def _cmd_feedback(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_clean(args: argparse.Namespace) -> None:
+    """Clean up data files (history, audit, feedback, status)."""
+    from pathlib import Path
+
+    config_dir = Path.home() / ".config" / "modelmux"
+
+    targets = {
+        "history": config_dir / "history.jsonl",
+        "audit": config_dir / "audit.jsonl",
+        "feedback": config_dir / "feedback.jsonl",
+        "status": config_dir / "status",
+        "benchmark": config_dir / "benchmark.json",
+    }
+
+    what = getattr(args, "what", "all")
+    dry_run = getattr(args, "dry_run", False)
+
+    if what == "all":
+        to_clean = list(targets.items())
+    else:
+        to_clean = [(what, targets[what])]
+
+    cleaned = 0
+    for name, path in to_clean:
+        if path.is_dir():
+            files = list(path.glob("*.json"))
+            if files:
+                size = sum(f.stat().st_size for f in files)
+                if dry_run:
+                    print(
+                        f"  Would remove {len(files)} files "
+                        f"from {name}/ ({size:,} bytes)"
+                    )
+                else:
+                    for f in files:
+                        f.unlink()
+                    print(f"  Cleaned {name}/ ({len(files)} files, {size:,} bytes)")
+                cleaned += 1
+        elif path.exists():
+            size = path.stat().st_size
+            if dry_run:
+                print(f"  Would remove {name} ({size:,} bytes)")
+            else:
+                path.unlink()
+                print(f"  Cleaned {name} ({size:,} bytes)")
+            cleaned += 1
+        else:
+            if dry_run:
+                print(f"  {name}: not found (skip)")
+
+    if cleaned == 0:
+        print("  Nothing to clean.")
+    elif dry_run:
+        print("\n  (dry run — no files removed)")
+
+
 def _cmd_version() -> None:
     from modelmux import __version__
 
@@ -1152,6 +1208,24 @@ def main() -> None:
         "--hours", type=float, default=0, help="Filter by time window (for --list)"
     )
 
+    # modelmux clean
+    clean_p = subparsers.add_parser(
+        "clean", help="Clean up data files (history, audit, feedback)"
+    )
+    clean_p.add_argument(
+        "what",
+        nargs="?",
+        default="all",
+        choices=["all", "history", "audit", "feedback", "status", "benchmark"],
+        help="What to clean (default: all)",
+    )
+    clean_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Show what would be removed without actually deleting",
+    )
+
     # modelmux version
     subparsers.add_parser("version", help="Show version")
 
@@ -1185,6 +1259,8 @@ def main() -> None:
         _cmd_profile(args)
     elif args.command == "feedback":
         _cmd_feedback(args)
+    elif args.command == "clean":
+        _cmd_clean(args)
     elif args.command == "version":
         _cmd_version()
     else:

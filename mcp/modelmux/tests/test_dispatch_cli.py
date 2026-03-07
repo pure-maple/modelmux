@@ -610,6 +610,72 @@ def test_feedback_list_empty(capsys):
     assert "No feedback" in captured.out
 
 
+# ── clean tests ──
+
+
+def test_clean_dry_run(capsys, tmp_path):
+    """clean --dry-run should not delete files."""
+    from modelmux.cli import _cmd_clean
+
+    history = tmp_path / "history.jsonl"
+    history.write_text('{"test": true}\n')
+
+    ns = MagicMock()
+    ns.what = "all"
+    ns.dry_run = True
+
+    # Create the config dir structure
+    cfg = tmp_path / ".config" / "modelmux"
+    cfg.mkdir(parents=True)
+    h = cfg / "history.jsonl"
+    h.write_text('{"test": true}\n')
+
+    with patch("pathlib.Path.home", return_value=tmp_path):
+        _cmd_clean(ns)
+
+    # File should still exist
+    assert h.exists()
+
+    captured = capsys.readouterr()
+    assert "dry run" in captured.out
+
+
+def test_clean_removes_file(capsys, tmp_path):
+    """clean history should remove history.jsonl."""
+    from modelmux.cli import _cmd_clean
+
+    cfg = tmp_path / ".config" / "modelmux"
+    cfg.mkdir(parents=True)
+    h = cfg / "history.jsonl"
+    h.write_text('{"test": true}\n')
+
+    ns = MagicMock()
+    ns.what = "history"
+    ns.dry_run = False
+
+    with patch("pathlib.Path.home", return_value=tmp_path):
+        _cmd_clean(ns)
+
+    assert not h.exists()
+    captured = capsys.readouterr()
+    assert "Cleaned" in captured.out
+
+
+def test_clean_nothing_to_clean(capsys, tmp_path):
+    """clean with no files shows nothing message."""
+    from modelmux.cli import _cmd_clean
+
+    ns = MagicMock()
+    ns.what = "all"
+    ns.dry_run = False
+
+    with patch("pathlib.Path.home", return_value=tmp_path):
+        _cmd_clean(ns)
+
+    captured = capsys.readouterr()
+    assert "Nothing to clean" in captured.out
+
+
 # ── history tests ──
 
 
