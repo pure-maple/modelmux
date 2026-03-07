@@ -52,24 +52,45 @@ def _cmd_config(args: argparse.Namespace) -> None:
     run_tui(scope=scope)
 
 
-def _cmd_check() -> None:
+def _cmd_check(args: argparse.Namespace) -> None:
     """Quick CLI availability check (no MCP server needed)."""
+    import json
     import shutil
 
     from modelmux import __version__
     from modelmux.adapters import ADAPTERS
 
-    print(f"modelmux v{__version__}")
-    print()
+    use_json = getattr(args, "json", False)
+    providers_data: dict[str, dict] = {}
+
     for name, cls in ADAPTERS.items():
         adapter = cls()
         binary = adapter._binary_name()
         path = shutil.which(binary)
-        if path:
-            print(f"  \033[0;32m[+]\033[0m {name:8s} {path}")
-        else:
-            print(f"  \033[1;33m[-]\033[0m {name:8s} not found")
-    print()
+        providers_data[name] = {
+            "available": path is not None,
+            "binary": binary,
+            "path": path or "",
+        }
+
+    if use_json:
+        output = {
+            "version": __version__,
+            "providers": providers_data,
+            "available_count": sum(
+                1 for p in providers_data.values() if p["available"]
+            ),
+        }
+        print(json.dumps(output, indent=2))
+    else:
+        print(f"modelmux v{__version__}")
+        print()
+        for name, info in providers_data.items():
+            if info["available"]:
+                print(f"  \033[0;32m[+]\033[0m {name:8s} {info['path']}")
+            else:
+                print(f"  \033[1;33m[-]\033[0m {name:8s} not found")
+        print()
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
@@ -635,7 +656,14 @@ def main() -> None:
     )
 
     # modelmux check
-    subparsers.add_parser("check", help="Check which model CLIs are available")
+    check_p = subparsers.add_parser(
+        "check", help="Check which model CLIs are available"
+    )
+    check_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON (for scripts and CI)",
+    )
 
     # modelmux status
     status_p = subparsers.add_parser("status", help="Monitor active dispatches")
@@ -799,7 +827,7 @@ def main() -> None:
     elif args.command == "config":
         _cmd_config(args)
     elif args.command == "check":
-        _cmd_check()
+        _cmd_check(args)
     elif args.command == "status":
         _cmd_status(args)
     elif args.command == "history":
