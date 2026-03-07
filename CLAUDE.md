@@ -50,13 +50,17 @@ A2A HTTP Server (modelmux a2a-server)
   └── TaskStore (in-memory + JSONL persistence)
 
 Web Dashboard (modelmux dashboard --port 41521)
-  ├── GET  /                → monitoring UI (auto-refresh)
+  ├── GET  /                → monitoring UI (SSE real-time + polling fallback)
   ├── GET  /api/status      → active dispatches
   ├── GET  /api/history     → dispatch history
   ├── GET  /api/stats       → aggregated statistics
   ├── GET  /api/providers   → provider availability
   ├── GET  /api/costs       → cost breakdown
-  └── GET  /api/feedback    → user feedback scores
+  ├── GET  /api/feedback    → user feedback scores
+  └── GET  /api/events      → SSE stream (2s push)
+
+CLI (modelmux dispatch / broadcast / feedback / profile)
+  └── Same adapters + smart routing, JSON output for scripts & CI
 ```
 
 ## Key Files
@@ -92,7 +96,7 @@ Web Dashboard (modelmux dashboard --port 41521)
 | `benchmark.py` | Provider benchmark suite (standardized tasks + scoring) |
 | `export.py` | Export history to CSV/JSON/Markdown reports |
 | `log.py` | Centralized logging config (level + JSON format via env vars) |
-| `cli.py` | CLI entry point with subcommands |
+| `cli.py` | CLI entry point (dispatch/broadcast/feedback/profile/check/status/history) |
 
 ## Dev Workflow
 
