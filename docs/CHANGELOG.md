@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.27.0 (unreleased)
+## v0.27.0 (2026-03-07)
 
 ### New Features
 - **`modelmux dispatch` CLI subcommand**: Run a single task from the command line with JSON output, smart routing, model override, and configurable timeout/sandbox
