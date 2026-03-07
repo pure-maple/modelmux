@@ -473,7 +473,17 @@ def _cmd_dispatch(args: argparse.Namespace) -> None:
             if result.status not in ("error", "timeout"):
                 break
 
-    output = json.dumps(result.to_dict(), ensure_ascii=False)
+    result_dict = result.to_dict()
+
+    # Log to history (same as MCP tool dispatch)
+    try:
+        from modelmux.history import log_result
+
+        log_result(result_dict, task=task, source="cli-dispatch")
+    except Exception:
+        pass
+
+    output = json.dumps(result_dict, ensure_ascii=False)
     print(output)
 
     if result.status != "success":
@@ -541,6 +551,15 @@ def _cmd_broadcast(args: argparse.Namespace) -> None:
             )
         else:
             results.append(r.to_dict())
+
+    # Log each result to history
+    try:
+        from modelmux.history import log_result
+
+        for rd in results:
+            log_result(rd, task=task, source="cli-broadcast")
+    except Exception:
+        pass
 
     output = json.dumps(
         {"results": results, "providers": targets},
